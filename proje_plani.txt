@@ -1,0 +1,84 @@
+# Borsa İstanbul Hisse Analiz ve Tavsiye Programı - Proje Planı
+
+Bu dosya, Türkiye borsasındaki hisseleri inceleyip, kullanıcının bütçesine göre yatırım tavsiyesi veren programın adım adım yapım aşamalarını içermektedir.
+
+## 1. Ortam Kurulumu ve Kullanılacak Teknolojiler [TAMAMLANDI]
+- Programlama Dili: Python (Veri analizi ve internetten veri çekme konularında en zengin kütüphanelere sahiptir.)
+- Kütüphaneler:
+  - yfinance veya requests: Borsa verilerini canlı/gecikmeli olarak internetten çekmek için.
+  - pandas: Verileri tablo formatında tutmak ve işlemek için.
+  - ta (Technical Analysis): RSI, MACD, Hareketli Ortalamalar gibi teknik analiz göstergelerini hesaplamak için.
+
+## 2. Veri Çekme Modülünün Geliştirilmesi [TAMAMLANDI]
+- BIST100, BIST30 veya kullanıcının belirleyeceği bir hisse havuzunun (Örn: THYAO.IS, ASELS.IS vb.) belirlenmesi.
+- Program her çalıştığında bu hisselerin en güncel fiyat, hacim ve geçmiş verilerinin anlık olarak çekilmesi.
+
+## 3. Bütçe Yönetimi Modülünün Hazırlanması [TAMAMLANDI]
+- Kullanıcı ilk defa girdiğinde veya bütçesini güncellemek istediğinde verinin alınması.
+- Bütçenin "butce.json" gibi yerel bir dosyada veya SQLite veritabanında saklanması.
+- Program tekrar açıldığında önceki bütçenin otomatik olarak yüklenebilmesi.
+
+## 4. Analiz ve Algoritma Geliştirilmesi [TAMAMLANDI]
+- Hisselere "Al", "Sat" veya "Tut" tavsiyesi verecek mantıksal/matematiksel modelin yazılması.
+- Örnek Strateji: 
+  - Hisse düşüş trendini kırmış mı?
+  - RSI değeri çok mu düşük (Aşırı satım bölgesi - ucuzlamış mı)?
+  - Temel hareketli ortalamaların (50 ve 200 günlük) üzerinde mi?
+
+## 5. Bütçe Optimizasyonu ve Lot Hesaplama [TAMAMLANDI]
+- Algoritmanın önerdiği hisseler arasından, kullanıcının elindeki bütçeye en uygun sepetin oluşturulması.
+- Her hissenin güncel fiyatına göre o hisseden kaç adet (Lot) alınabileceğinin ve kalan küsurat bütçesinin hesaplanması.
+
+## 6. Kullanıcı Arayüzü (CLI / Konsol Menüsü) [TAMAMLANDI]
+Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü hazırlanması:
+1. Bütçeyi Görüntüle / Güncelle
+2. Piyasayı Analiz Et ve Tavsiye Ver
+3. Çıkış
+
+## 7. Test ve İyileştirmeler [TAMAMLANDI]
+- Çıktıların görsel olarak daha anlaşılır (renkli ve düzenli) formatta ekrana basılması.
+
+## 8. Portföy Takibi ve Satış Stratejisi [TAMAMLANDI]
+- Kullanıcının tavsiyeler sonucunda veya manuel olarak aldığı hisseleri ve miktarlarını (lot) sisteme girip kaydedebilmesi.
+- Eldeki hisselerin "Sat" veya "Tut" durumlarının teknik analize göre değerlendirilmesi.
+- Satış durumunda elde edilecek nakit ile yeni alınabilecek hisselerin önerilmesi.
+
+## 9. İşlem Geçmişi (Loglama) [TAMAMLANDI]
+- Uygulama üzerinde bütçe güncellemelerinin, hisse alış ve satışlarının tek tek `islem_gecmisi.md` adlı harici bir dosyaya tablo olarak yazılması.
+- Bu tabloda işlem tarihi, türü, hisse kodu, lotu, fiyatı ve güncel kalan bütçe tutarının gösterilmesi.
+
+## 10. Çoklu Kullanıcı / Portföy Desteği [TAMAMLANDI]
+- Program başlangıcında yeni portföy açma veya mevcut portföyleri (hesapları) seçebilme özelliği.
+- Her kullanıcının/portföyün kendi özel isimleriyle oluşturulmuş bütçe/portföy veritabanı (Örn: `[isim]_butce.json`).
+- Her portföye özel ayrı tutulan işlem logu (Örn: `[isim]_islem_gecmisi.md`).
+
+## 11. Portföy Yönetimi (Silme ve Sıfırlama) [TAMAMLANDI]
+- Ana menü üzerinden aktif portföyün içerisindeki bütçe ve hisselerin sıfırlanabilmesi (işlem geçmişi kalarak temiz bir başlangıç).
+- Mevcut portföyün veri tabanı (`json`) ve işlem geçmişi (`md`) dosyalarının diskten tamamen silinerek hesaba ait tüm izlerin yok edilmesi seçeneğinin eklenmesi.
+
+## 12. Gelişmiş İşlem Loglama (K/Z Oranları) [TAMAMLANDI]
+- İşlem geçmişi tablosuna "K/Z (TL)" ve "K/Z (%)" sütunlarının eklenmesi.
+- Hisse satış işlemlerinde gerçekleşen anlık kâr veya zararın hesaplanarak loga ve ekrana yansıtılması.
+- Eski log dosyalarının yapısının bozulmaması için otomatik kolon ekleme (migration) fonksiyonunun geliştirilmesi.
+
+## 13. Kesintisiz İşlem Akışı (Döngüler) [TAMAMLANDI]
+- Hisse alımı, manuel ekleme ve hisse satımı adımlarında kullanıcıya her işlemin ardından "Başka hisse var mı?" sorusu yöneltilerek peş peşe sınırsız işlem yapabilme esnekliği.
+
+## 14. BIST 100 Entegrasyonu ve Veri Kontrolü [TAMAMLANDI]
+- BIST30 olan analiz havuzunun BIST100 listesine çıkarılması.
+- Veri çekimi işlemi sonrasında kaç hissenin verisinin başarıyla indirildiğinin (Örn: 98/100) ekrana yazdırılması.
+
+## 15. Loglama Altyapısının Geliştirilmesi (TXT Formatı ve Anlık Değerleme) [TAMAMLANDI]
+- Markdown (`.md`) formatında tutulan dar yapılı işlem geçmişinin, okunabilirliği çok daha yüksek, hizalanmış bir ASCII Tablo (`.txt`) formatına dönüştürülmesi.
+- Eski `.md` kayıtlarının program başlarken otomatik olarak okunup hatasızca yeni `.txt` yapısına çevrilmesi.
+- 3. Menüden portföy incelendiğinde; mevcut toplam portföy değerinin ve genel Kar/Zarar tutarının hesaplanıp, "Portföy Değerlemesi" adıyla işlem geçmişine otomatik olarak eklenmesi.
+
+## 16. Gelişmiş Teknik Analiz Motoru [TAMAMLANDI]
+- Ağırlıklı puanlama sistemi (Maks 10 puan) ile kriter sayısının 3'ten 7'ye çıkarılması.
+- Yeni göstergeler: Bollinger Bantları (sıkışma tespiti), Stochastic Oscillator, Hacim (Volume) doğrulaması, Golden Cross / Death Cross (SMA50 vs SMA200).
+- RSI eşiklerinin profesyonel seviyelere güncellenmesi (30/40/70/80).
+- MACD için "taze kesişim" (crossover) tespiti ile güçlü sinyal ayrımı.
+- Sinyal gücü derecelendirmesi: Güçlü / Orta / Zayıf.
+- Satış kararı için 3 kademe: "Güçlü Tut", "Dikkatli Tut", "Sat".
+- Veri çekme periyodunun SMA200 desteği için 3 aydan 1 yıla çıkarılması.
+- Top 5 yerine en iyi 10 hissenin gösterilmesi.
