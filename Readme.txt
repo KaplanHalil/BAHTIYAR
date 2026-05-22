@@ -1,17 +1,9 @@
-╔══════════════════════════════════════════════════════════════════╗
-║                 BAHTİYAR PORTFÖY YÖNETİM SİSTEMİ                 ║
-║ Gelişmiş Analiz ve Tavsiye Motoru ile Akıllı Yatırım Asistanınız ║
-╚══════════════════════════════════════════════════════════════════╝
-
-B = Borsa
-A = Alım-satım
-H = Hesap
-T = Tasarruf
-İ = İhtiyat
-Y = Yatırım
-A = Analiz
-R = Rapor
-
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     BAHTIYAR PORTFÖY YÖNETİM SİSTEMİ                         ║
+║         Gelişmiş Analiz ve Tavsiye Motoru ile Akıllı Yatırım Asistanı        ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Borsa • Alım-Satım • Hesap • Tasarruf • İhtiyat • Yatırım • Analiz • Rapor  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 Programı çalıştırmak için:
 
 source venv/bin/activate
