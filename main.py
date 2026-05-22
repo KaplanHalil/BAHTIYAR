@@ -1,5 +1,7 @@
 import sys
 import os
+import yfinance as yf
+
 from budget_manager import load_budget, save_budget, load_portfolio, save_portfolio, set_profile, get_all_profiles, delete_profile, reset_current_profile
 from data_fetcher import fetch_data
 from analyzer import analyze_stocks, evaluate_portfolio
@@ -17,6 +19,7 @@ except Exception:
         RED = GREEN = YELLOW = BLUE = MAGENTA = CYAN = RESET = ''
     class Style:
         BRIGHT = NORMAL = RESET_ALL = ''
+
 
 def print_separator():
     print("=" * 70)
@@ -93,6 +96,7 @@ def init_profile():
 
 def main():
     migrate_old_data()
+    
     active_profile = init_profile()
     
     while True:
