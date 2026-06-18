@@ -25,6 +25,9 @@ BIST_STOCKS = [
     "TUPRS.IS", "ULKER.IS", "VAKBN.IS", "VESBE.IS", "VESTL.IS", "YEOTK.IS", "YKBNK.IS", "YYLGD.IS", "ZOREN.IS", "KZBGY.IS"
 ]
 
+# Genel piyasa rejimi için BIST 100 endeksi
+MARKET_INDEX = 'XU100.IS'
+
 # Değerli Metaller
 PRECIOUS_METALS = ['GC=F', 'SI=F']  # Altın ve Gümüş Futures
 
@@ -74,6 +77,19 @@ def fetch_data(stock_list=None, include_metals=True, period="1y"):
 
         except Exception as e:
             print(f"Hisse veri çekme hatası: {e}")
+
+    # ========== BIST ENDEKS VERİSİ ==========
+    try:
+        index_data = yf.download(
+            tickers=MARKET_INDEX,
+            period=period,
+            auto_adjust=False,
+            progress=False
+        )
+        if not index_data.empty:
+            result[MARKET_INDEX] = index_data.dropna(how="all")
+    except Exception as e:
+        print(f"BIST endeks veri çekme hatası: {e}")
 
     # ========== DEĞERLI METAL VERİLERİ ==========
     if include_metals:

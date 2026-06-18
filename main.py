@@ -141,10 +141,10 @@ def main():
                 continue
                 
             print("\nPiyasa verileri çekiliyor (hisseler, altın, gümüş), lütfen bekleyin...")
-            from data_fetcher import BIST_STOCKS, PRECIOUS_METALS
+            from data_fetcher import BIST_STOCKS, PRECIOUS_METALS, MARKET_INDEX
             data_dict = fetch_data(include_metals=True)
             
-            stocks_count = len([t for t in data_dict.keys() if t.endswith('.IS')])
+            stocks_count = len([t for t in data_dict.keys() if t.endswith('.IS') and t != MARKET_INDEX])
             metals_count = len([t for t in data_dict.keys() if t in ['GC=F', 'SI=F']])
             
             print(f"> {stocks_count}/{len(BIST_STOCKS)} hissenin, {metals_count}/{len(PRECIOUS_METALS)} değerli metalin verisi çekildi.")
