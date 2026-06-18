@@ -374,6 +374,9 @@ def analyze_precious_metals(data_dict):
             last_macd_diff = float(macd_diff.iloc[-1]) if len(macd_diff) > 0 else 0
             
             # ---- AĞIRLIKLI PUANLAMA SİSTEMİ (Değerli Metaller) ----
+            # İki strateji desteklenir:
+            #   A) Dip alma: Düşük RSI + fiyat geri çekildi
+            #   B) Trend takip: Yükselen trend, güçlü momentum
             score = 0
             reasons = []
             
@@ -384,39 +387,48 @@ def analyze_precious_metals(data_dict):
             elif last_rsi < 40:
                 score += 1
                 reasons.append(f"RSI Düşük ({last_rsi:.1f})")
-            elif last_rsi > 70:
-                score -= 1  # Aşırı alım bölgesi
-                
-            # Kriter 2: 5 Günlük Fiyat Trendi (+1 puan)
+            elif 50 <= last_rsi <= 70:
+                # Sağlıklı trend bölgesi — ne aşırı alım ne satım
+                score += 1
+                reasons.append(f"RSI Trend Bölgesi ({last_rsi:.1f})")
+            # RSI > 70: nötr (ceza yok — güçlü trendin işareti olabilir)
+
+            # Kriter 2: 5 Günlük Fiyat Hareketi
             if price_change_5d < -5:
-                score += 2
+                score += 2  # Sert düşüş = dip alma fırsatı
                 reasons.append(f"Kısa Vadeli Düşüş ({price_change_5d:.1f}%)")
             elif price_change_5d < 0:
-                score += 1
+                score += 1  # Hafif geri çekilme
                 reasons.append(f"Hafif Düşüş ({price_change_5d:.1f}%)")
+            elif 0 < price_change_5d < 3:
+                score += 1  # Istikrarlı yükseliş
+                reasons.append(f"Istikrarlı Artış ({price_change_5d:.1f}%)")
                 
-            # Kriter 3: 20 Günlük Trend (+1 puan)
-            if price_change_20d > 5:
+            # Kriter 3: 20 Günlük Orta Vadeli Trend
+            if price_change_20d > 3:
+                score += 2
+                reasons.append(f"Güçlü 20g Trend ({price_change_20d:.1f}%)")
+            elif price_change_20d > 0:
                 score += 1
-                reasons.append(f"20 Günlük Trend Güçlü ({price_change_20d:.1f}%)")
+                reasons.append(f"Pozitif 20g Trend ({price_change_20d:.1f}%)")
                 
-            # Kriter 4: SMA20 Üzerinde (+1 puan)
+            # Kriter 4: Fiyat SMA20 Üzerinde (+1 puan)
             if last_price > last_sma20:
                 score += 1
-                reasons.append(f"Fiyat > SMA20")
+                reasons.append("Fiyat > SMA20")
                 
-            # Kriter 5: SMA50 Üzerinde (Varsa) (+1 puan)
+            # Kriter 5: Fiyat SMA50 Üzerinde (+1 puan)
             if last_sma50 is not None and last_price > last_sma50:
                 score += 1
-                reasons.append(f"Fiyat > SMA50")
+                reasons.append("Fiyat > SMA50")
                 
             # Kriter 6: MACD Pozitif (+1 puan)
             if last_macd_diff > 0:
                 score += 1
                 reasons.append("MACD Pozitif")
                 
-            # Kriter 7: Volatilite (Risk Yönetimi)
-            if volatility > 3:  # Yüksek volatilite
+            # Kriter 7: Volatilite — sadece çok yüksekse ceza
+            if volatility > 5:
                 score -= 1
                 reasons.append(f"Yüksek Volatilite ({volatility:.1f}%)")
             
