@@ -306,3 +306,167 @@ def evaluate_portfolio(portfolio, data_dict):
             continue
         
     return evaluations
+
+
+# ============================================================================
+#  DEĞERLI METALLER (ALTIN / GÜMÜŞ) ANALİZ MOTORU
+#  Kuveyt Türk fiyatları üzerinden tavsiye
+# ============================================================================
+
+def analyze_precious_metals(data_dict):
+    """
+    Altın (GC=F) ve Gümüş (SI=F) futures'ı analiz eder.
+    Hisse analizi ile benzer ağırlıklı puanlama sistemi kullanır.
+    
+    NOT: GC=F ve SI=F USD bazında değerli metal futures'larıdır.
+    Kuveyt Türk'ün TL bazındaki fiyatları almak için dönüşüm yapılabilir.
+    """
+    recommendations = []
+    
+    metal_map = {
+        'GC=F': {'name': 'ALTIN', 'unit': 'gram', 'display': '🥇 Altın'},
+        'SI=F': {'name': 'GUMUS', 'unit': 'gram', 'display': '🥈 Gümüş'}
+    }
+    
+    for ticker, df in data_dict.items():
+        if ticker not in metal_map:
+            continue
+            
+        if len(df) < 30:  # Değerli metaller için 30 günlük veri yeterli
+            continue
+            
+        try:
+            close_prices = df['Close'].squeeze()
+            if isinstance(close_prices, pd.DataFrame):
+                close_prices = close_prices.iloc[:, 0]
+            
+            volume = df['Volume'].squeeze() if 'Volume' in df.columns else None
+            if isinstance(volume, pd.DataFrame):
+                volume = volume.iloc[:, 0]
+                
+            last_price = float(close_prices.iloc[-1])
+            
+            # ---- GÖSTERGE HESAPLAMALARI ----
+            
+            # 1. RSI (14 Günlük)
+            rsi = RSIIndicator(close=close_prices, window=14).rsi()
+            last_rsi = float(rsi.iloc[-1])
+            
+            # 2. SMA 20 & 50 (Kısa vadeli trend)
+            sma20 = SMAIndicator(close=close_prices, window=20).sma_indicator()
+            last_sma20 = float(sma20.iloc[-1])
+            last_sma50 = None
+            
+            if len(close_prices) >= 50:
+                sma50 = SMAIndicator(close=close_prices, window=50).sma_indicator()
+                last_sma50 = float(sma50.iloc[-1])
+            
+            # 3. Volatilite (Standart Sapma) - Fiyat hareketliliğini ölç
+            volatility = close_prices.std() / close_prices.mean() * 100 if close_prices.mean() > 0 else 0
+            
+            # 4. Fiyat Hareketleri
+            price_change_5d = ((last_price - float(close_prices.iloc[-5])) / float(close_prices.iloc[-5]) * 100) if len(close_prices) >= 5 else 0
+            price_change_20d = ((last_price - float(close_prices.iloc[-20])) / float(close_prices.iloc[-20]) * 100) if len(close_prices) >= 20 else 0
+            
+            # 5. MACD (Trend yönü)
+            macd_indicator = MACD(close=close_prices, window=12 if len(close_prices) >= 26 else None)
+            macd_diff = macd_indicator.macd_diff()
+            last_macd_diff = float(macd_diff.iloc[-1]) if len(macd_diff) > 0 else 0
+            
+            # ---- AĞIRLIKLI PUANLAMA SİSTEMİ (Değerli Metaller) ----
+            score = 0
+            reasons = []
+            
+            # Kriter 1: RSI Analizi (Maks +2 puan)
+            if last_rsi < 30:
+                score += 2
+                reasons.append(f"RSI Aşırı Satım ({last_rsi:.1f})")
+            elif last_rsi < 40:
+                score += 1
+                reasons.append(f"RSI Düşük ({last_rsi:.1f})")
+            elif last_rsi > 70:
+                score -= 1  # Aşırı alım bölgesi
+                
+            # Kriter 2: 5 Günlük Fiyat Trendi (+1 puan)
+            if price_change_5d < -5:
+                score += 2
+                reasons.append(f"Kısa Vadeli Düşüş ({price_change_5d:.1f}%)")
+            elif price_change_5d < 0:
+                score += 1
+                reasons.append(f"Hafif Düşüş ({price_change_5d:.1f}%)")
+                
+            # Kriter 3: 20 Günlük Trend (+1 puan)
+            if price_change_20d > 5:
+                score += 1
+                reasons.append(f"20 Günlük Trend Güçlü ({price_change_20d:.1f}%)")
+                
+            # Kriter 4: SMA20 Üzerinde (+1 puan)
+            if last_price > last_sma20:
+                score += 1
+                reasons.append(f"Fiyat > SMA20")
+                
+            # Kriter 5: SMA50 Üzerinde (Varsa) (+1 puan)
+            if last_sma50 is not None and last_price > last_sma50:
+                score += 1
+                reasons.append(f"Fiyat > SMA50")
+                
+            # Kriter 6: MACD Pozitif (+1 puan)
+            if last_macd_diff > 0:
+                score += 1
+                reasons.append("MACD Pozitif")
+                
+            # Kriter 7: Volatilite (Risk Yönetimi)
+            if volatility > 3:  # Yüksek volatilite
+                score -= 1
+                reasons.append(f"Yüksek Volatilite ({volatility:.1f}%)")
+            
+            score = max(score, 0)
+            
+            # Skor en az 3 ise tavsiye listesine ekle
+            if score >= 3:
+                sinyal_gucu = "Güçlü" if score >= 6 else ("Orta" if score >= 4 else "Zayıf")
+                
+                metal_info = metal_map[ticker]
+                recommendations.append({
+                    'Hisse': metal_info['name'],
+                    'Fiyat': last_price,
+                    'RSI': last_rsi,
+                    'Skor': score,
+                    'Sinyal': sinyal_gucu,
+                    'Nedenler': ", ".join(reasons),
+                    'AssetType': 'METAL',
+                    'Display': metal_info['display'],
+                    'Unit': metal_info['unit'],
+                    'Volatility': volatility
+                })
+                
+        except Exception as e:
+            continue
+            
+    # En yüksek skora göre sırala
+    recommendations.sort(key=lambda x: (-x['Skor'], x['RSI']))
+    return recommendations
+
+
+def analyze_all_assets(data_dict):
+    """
+    Hem hisseler hem de değerli metaller (altın/gümüş) için
+    birleştirilmiş analiz yapır ve kombinli tavsiyeler döndürür.
+    """
+    # Hisse analizi
+    stock_recs = analyze_stocks(data_dict)
+    
+    # Değerli metal analizi
+    metal_recs = analyze_precious_metals(data_dict)
+    
+    # Hisselere AssetType ekle
+    for rec in stock_recs:
+        rec['AssetType'] = 'HISSE'
+        rec['Display'] = f"📊 {rec['Hisse']}"
+        rec['Unit'] = 'adet'
+    
+    # Birleştir ve sırala
+    all_recommendations = stock_recs + metal_recs
+    all_recommendations.sort(key=lambda x: (-x['Skor'], x['RSI']))
+    
+    return all_recommendations

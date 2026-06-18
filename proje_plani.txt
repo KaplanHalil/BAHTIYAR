@@ -82,3 +82,54 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
 - Satış kararı için 3 kademe: "Güçlü Tut", "Dikkatli Tut", "Sat".
 - Veri çekme periyodunun SMA200 desteği için 3 aydan 1 yıla çıkarılması.
 - Top 5 yerine en iyi 10 hissenin gösterilmesi.
+
+## 17. ALTIN VE GÜMÜŞ TİCARET DESTEĞI [YENI EKLENEN ÖZELLIKLER]
+- Kuveyt Türk fiyatlarına uygun altın ve gümüş futures verilerinin entegrasyonu (GC=F, SI=F)
+- TCMB API'den canlı altın/gümüş fiyatlarının çekilmesi
+- Altın ve gümüş için teknik analiz göstergelerinin geliştirilmesi:
+  - RSI (Aşırı alım-satım tespiti)
+  - SMA 20/50 (Trend analizi)
+  - MACD (Trend yönü)
+  - Volatilite ölçümü (risk değerlendirmesi)
+  - 5 ve 20 günlük fiyat değişim analizi
+- Hisseler ve değerli metaller için birleştirilmiş tavsiye sistemi (analyze_all_assets)
+- Portföy optimizasyonunda altın/gümüş'ün gram cinsinden lot hesaplaması
+- Altın/gümüş'ü hisselerle aynı portföyde yönetebilme
+- Satış işlemlerinde altın/gümüş'ün TL cinsinden kar/zarar hesaplaması
+- İşlem geçmişinde metal işlemlerinin (gram cinsinden) kaydedilmesi
+
+## 18. KULLANCI ARAYÜZÜ GÜNCELLEMESI [TAMAMLANDI]
+- Menüde "Piyasayı Analiz Et" seçeneği artık hisseler + altın/gümüş tavsiyesi verir
+- Tavsiye listesinde altın/gümüş için fiyat/gram, volatilite bilgisi gösterilir
+- Portföy optimizasyonu sonuçlarında altın/gümüş gram cinsinden gösterilir
+- Manuel hisse/metal ekleme sırasında asset tipi seçimi (Hisse/Metal)
+- Portföy görüntülemede altın/gümüş ayrı bölümde listelenir
+- Satış işlemleri hem hisse hem metal için desteklenir
+
+## 19. VERİ YAPISININ UYUMLULUĞU [TAMAMLANDI]
+- Portfolio JSON yapısında 'type' alanı (H/M) eklenerek asset tipi ayrımı
+- Log sisteminde 'Asset Alım/Satım' işlemleri kayıt edilir
+- Değerli metallerin caching sistemi ile TCMB API yüküne dikkat
+
+## 20. GEREKLI KÜTÜPHANELER GÜNCELLEMESİ [TAMAMLANDI]
+- requests: TCMB API'den veri çekme
+- beautifulsoup4: Opsiyonel web scraping
+- colorama: Zaten mevcut (renklendirme)
+
+## 21. BACKTEST MODU - SİSTEM PERFORMANSI TESTİ [TAMAMLANDI]
+- Son 2 yıl (veya özel dönem) borsa verilerini indiriyor
+- Başlangıç bütçesi kullanıcı tarafından belirtiliyor
+- Günlük simülasyon:
+  - Her gün tavsiye algoritmasını çalıştırır
+  - Tavsiye uyarınca hisse alım yapır
+  - Mevcut portföy değerlendirmesi yapır
+  - Sat tavsiyesine uyarak satış işlemi yapır
+  - Kalan bütçe ile alım yapabilir
+- 2 yıl (veya belirtilen dönem) sonunda:
+  - Başlangıç ve son portföy değeri karşılaştırması
+  - Toplam kar/zarar hesabı (TL ve %)
+  - Yapılan alım/satım işlemlerinin detaylı listesi
+  - Gerçekleşen kar/zarar
+  - Final portföy durumu
+- Rapor TXT dosyasına kaydediliyor (backtest_report_[tarih].txt)
+- Backtest sonuçlarıyla sistem başarısı ölçülebiliyor

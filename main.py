@@ -114,9 +114,10 @@ def main():
         print("4. Portföye Manuel Hisse Ekle")
         print("5. Mevcut Portföyü Sıfırla veya Sil")
         print("6. Diğer Portföye Geç")
-        print("7. Çıkış")
+        print("7. Backtest Modu (Son 2 Yıl Test)")
+        print("8. Çıkış")
         
-        choice = input("\nSeçiminiz (1/2/3/4/5/6/7): ")
+        choice = input("\nSeçiminiz (1/2/3/4/5/6/7/8): ")
         
         if choice == '1':
             try:
@@ -139,95 +140,137 @@ def main():
                 print("Lütfen önce bütçenizi güncelleyin (Bütçeniz 0 TL).")
                 continue
                 
-            print("\nPiyasa verileri çekiliyor, lütfen bekleyin...")
-            from data_fetcher import BIST_STOCKS
-            data_dict = fetch_data()
-            print(f"> {len(data_dict)}/{len(BIST_STOCKS)} hissenin verisi başarıyla çekildi.")
+            print("\nPiyasa verileri çekiliyor (hisseler, altın, gümüş), lütfen bekleyin...")
+            from data_fetcher import BIST_STOCKS, PRECIOUS_METALS
+            data_dict = fetch_data(include_metals=True)
             
-            print("Veriler analiz ediliyor...")
-            recommendations = analyze_stocks(data_dict)
+            stocks_count = len([t for t in data_dict.keys() if t.endswith('.IS')])
+            metals_count = len([t for t in data_dict.keys() if t in ['GC=F', 'SI=F']])
+            
+            print(f"> {stocks_count}/{len(BIST_STOCKS)} hissenin, {metals_count}/{len(PRECIOUS_METALS)} değerli metalin verisi çekildi.")
+            
+            print("Veriler analiz ediliyor (hisseler + altın/gümüş)...")
+            from analyzer import analyze_all_assets
+            recommendations = analyze_all_assets(data_dict)
             
             if not recommendations:
-                print("Şu anki piyasa koşullarında stratejiye uyan hisse bulunamadı.")
+                print("Şu anki piyasa koşullarında stratejiye uyan asset bulunamadı.")
                 continue
                 
-            print("\n*** POTANSİYEL HİSSELERE AİT TEKNİK ANALİZ SONUÇLARI ***")
+            print("\n" + "="*70)
+            print("*** OPSIYONEL HİSSELER VE DEĞERLI METALLER - TEKNİK ANALİZ SONUÇLARI ***")
+            print("="*70)
             for r in recommendations[:10]:
-                print(f"- {r['Hisse']:<6}: Fiyat={r['Fiyat']:.2f} TL | Skor={r['Skor']}/{10} | Sinyal: {r['Sinyal']} | Neden: {r['Nedenler']}")
+                display = r.get('Display', r['Hisse'])
+                asset_type = r.get('AssetType', 'HISSE')
+                unit = r.get('Unit', 'adet')
+                
+                if asset_type == 'METAL':
+                    print(f"- {display:<12} | Fiyat/Gram={r['Fiyat']:.2f} TL | Skor={r['Skor']}/{10} | Sinyal: {r['Sinyal']} | Vol:{r.get('Volatility',0):.1f}%")
+                else:
+                    print(f"- {display:<12} | Fiyat={r['Fiyat']:.2f} TL | Skor={r['Skor']}/{10} | Sinyal: {r['Sinyal']}")
+                print(f"  └─ Nedenler: {r['Nedenler']}")
                 
             print("\nBütçenize göre portföy oluşturuluyor...")
             allocations, remaining = allocate_budget(budget, recommendations)
             
             if not allocations:
-                print("Bütçeniz önerilen hisselerden almak için (en az 1 lot) yetersiz.")
+                print("Bütçeniz önerilen asset'lerden almak için yetersiz.")
             else:
-                print("\n" + "*" * 50)
-                print("        TAVSİYE EDİLEN PORTFÖY DAĞILIMI")
-                print("*" * 50)
+                print("\n" + "*" * 70)
+                print("        TAVSİYE EDİLEN PORTFÖY DAĞILIMI (Hisseler + Altın/Gümüş)")
+                print("*" * 70)
                 total_spent = 0
                 for item in allocations:
-                    print(f"Hisse: {item['Hisse']:<6} | Lot: {item['Lot']:<4} | Fiyat: {item['Fiyat']:>7.2f} TL | Toplam: {item['Toplam Maliyet']:>8.2f} TL")
+                    asset_type = item.get('AssetType', 'HISSE')
+                    unit = item.get('Unit', 'adet')
+                    display = item.get('Display', item['Hisse'])
+                    
+                    if asset_type == 'METAL':
+                        print(f"{display:<12} | {item['Lot']:<4} gram | {item['Fiyat']:>7.2f} TL/gram | Toplam: {item['Toplam Maliyet']:>8.2f} TL")
+                    else:
+                        print(f"{display:<12} | {item['Lot']:<4} lot  | {item['Fiyat']:>7.2f} TL/lot  | Toplam: {item['Toplam Maliyet']:>8.2f} TL")
+                    
                     total_spent += item['Toplam Maliyet']
                     
-                print("-" * 50)
+                print("-" * 70)
                 print(f"Harcanan Toplam Bütçe: {total_spent:.2f} TL")
                 print(f"Kalan Nakit:          {remaining:.2f} TL")
                 
-            al_cevap = input("\nBu tavsiyelerden veya kendi tercihinizle hisse aldınız mı? (E/H): ").strip().upper()
+            al_cevap = input("\nBu tavsiyelerden veya kendi tercihinizle asset aldınız mı? (E/H): ").strip().upper()
             if al_cevap == 'E':
                 while True:
-                    hisse_kodu = input("\nAldığınız Hisse Kodu (Örn: THYAO): ").strip().upper()
+                    asset_kodu = input("\nAldığınız Hisse/Metal Kodu (Örn: THYAO veya ALTIN): ").strip().upper()
+                    asset_type = input("Asset Tipi (H=Hisse, M=Metal): ").strip().upper()
+                    
+                    if asset_type == 'M':
+                        unit = "gram"
+                    else:
+                        unit = "lot"
+                        asset_type = 'H'
+                    
                     try:
-                        lot_miktari = int(input(f"[{hisse_kodu}] Kaç Lot Aldınız: ").strip())
-                        alis_fiyati = float(input(f"[{hisse_kodu}] Alış Fiyatınız (TL): ").strip())
+                        miktar = int(input(f"[{asset_kodu}] Kaç {unit} Aldınız: ").strip())
+                        alis_fiyati = float(input(f"[{asset_kodu}] Alış Fiyatınız (TL/{unit}): ").strip())
                         
-                        toplam_tutar = lot_miktari * alis_fiyati
+                        toplam_tutar = miktar * alis_fiyati
                         if toplam_tutar > budget:
                             print(f"Hata: Alış tutarı ({toplam_tutar:.2f} TL) mevcut bütçenizden ({budget:.2f} TL) fazla olamaz!")
                         else:
-                            if hisse_kodu in portfolio:
-                                mevcut_lot = portfolio[hisse_kodu]['lot']
-                                mevcut_maliyet = portfolio[hisse_kodu]['maliyet']
-                                yeni_lot = mevcut_lot + lot_miktari
+                            if asset_kodu in portfolio:
+                                mevcut_lot = portfolio[asset_kodu]['lot']
+                                mevcut_maliyet = portfolio[asset_kodu]['maliyet']
+                                yeni_lot = mevcut_lot + miktar
                                 yeni_maliyet = ((mevcut_lot * mevcut_maliyet) + toplam_tutar) / yeni_lot
-                                portfolio[hisse_kodu] = {'lot': yeni_lot, 'maliyet': yeni_maliyet}
+                                portfolio[asset_kodu] = {'lot': yeni_lot, 'maliyet': yeni_maliyet, 'type': asset_type}
                             else:
-                                portfolio[hisse_kodu] = {'lot': lot_miktari, 'maliyet': alis_fiyati}
+                                portfolio[asset_kodu] = {'lot': miktar, 'maliyet': alis_fiyati, 'type': asset_type}
                                 
                             budget -= toplam_tutar
                             save_portfolio(portfolio)
                             save_budget(budget)
-                            log_transaction("Hisse Alım", hisse_kodu, lot_miktari, alis_fiyati, -toplam_tutar, budget)
-                            print(f"{hisse_kodu} başarıyla portföye eklendi. Kalan Bütçeniz: {budget:.2f} TL")
+                            log_transaction(f"Asset Alım ({unit})", asset_kodu, miktar, alis_fiyati, -toplam_tutar, budget)
+                            print(f"{asset_kodu} başarıyla portföye eklendi. Kalan Bütçeniz: {budget:.2f} TL")
                     except ValueError:
-                        print("Hatalı giriş yaptınız. Lütfen lot için tam sayı, fiyat için sayı girin.")
+                        print("Hatalı giriş yaptınız. Lütfen miktar için tam sayı, fiyat için sayı girin.")
                         
-                    baska = input("\nAldığınız başka hisse var mı? (E/H): ").strip().upper()
+                    baska = input("\nAldığınız başka asset var mı? (E/H): ").strip().upper()
                     if baska != 'E':
                         break
                     
         elif choice == '3':
             if not portfolio:
-                print("\nPortföyünüzde henüz hisse bulunmuyor.")
+                print("\nPortföyünüzde henüz asset bulunmuyor.")
                 continue
                 
             print("\nPortföy verileriniz için güncel piyasa fiyatları çekiliyor...")
-            from data_fetcher import BIST_STOCKS
-            fetch_list = list(set(BIST_STOCKS + [f"{t}.IS" for t in portfolio.keys()]))
-            data_dict = fetch_data(fetch_list)
-            print(f"> {len(data_dict)}/{len(fetch_list)} hissenin verisi başarıyla çekildi.")
+            from data_fetcher import BIST_STOCKS, PRECIOUS_METALS
+            
+            # Portföydeki hisseleri çekme listesine ekle
+            portfolio_stocks = [t for t in portfolio.keys() if portfolio[t].get('type', 'H') == 'H']
+            portfolio_metals = [t for t in portfolio.keys() if portfolio[t].get('type', 'H') == 'M']
+            
+            fetch_list = list(set(BIST_STOCKS + [f"{t}.IS" for t in portfolio_stocks]))
+            
+            # Metal fiyatları da ekle
+            data_dict = fetch_data(fetch_list, include_metals=(len(portfolio_metals) > 0))
+            
+            stocks_count = len([t for t in data_dict.keys() if t.endswith('.IS')])
+            metals_count = len([t for t in data_dict.keys() if t in ['GC=F', 'SI=F']])
+            print(f"> {stocks_count}/{len(fetch_list)} hissenin, {metals_count}/{len(PRECIOUS_METALS)} metalin verisi çekildi.")
             
             print("Portföyünüz değerlendiriliyor...")
             evaluations = evaluate_portfolio(portfolio, data_dict)
             
-            print("\n" + "=" * 70)
+            print("\n" + "=" * 80)
             print(f"                 [{active_profile.upper()}] PORTFÖY DURUMU VE TAVSİYELER")
-            print("=" * 70)
+            print("=" * 80)
             
             satilacaklar = []
             toplam_portfoy_degeri = 0
             toplam_maliyet = 0
             
+            # Hisselerin değerlendirilmesi
             for ev in evaluations:
                 hisse = ev['Hisse']
                 lot = ev['Lot']
@@ -243,52 +286,92 @@ def main():
                 toplam_portfoy_degeri += guncel_tutar
                 toplam_maliyet += hisse_maliyeti
                 
-                print(f"Hisse: {hisse:<5} | Lot: {lot:<4} | Maliyet: {maliyet:>6.2f} | Güncel: {fiyat:>6.2f} | K/Z: %{k_z:>5.2f}")
+                print(f"📊 Hisse: {hisse:<5} | Lot: {lot:<4} | Maliyet: {maliyet:>6.2f} | Güncel: {fiyat:>6.2f} | K/Z: %{k_z:>5.2f}")
                 print(f"   -> TAVSİYE: {durum} (Neden: {neden})")
-                print("-" * 70)
+                print("-" * 80)
                 
                 if durum in ['Sat', 'Dikkatli Tut']:
                     satilacaklar.append(ev)
             
+            # Portföydeki altın/gümüş'ü de göster
+            print("\n" + "="*80)
+            print("DEĞERLI METALLER")
+            print("="*80)
+            metals_in_portfolio = {k: v for k, v in portfolio.items() if v.get('type') == 'M'}
+            
+            if metals_in_portfolio:
+                for metal_kodu, metal_info in metals_in_portfolio.items():
+                    metal_lot = metal_info['lot']
+                    metal_maliyet = metal_info['maliyet']
+                    
+                    # Metal gösterimi
+                    if metal_kodu == 'ALTIN':
+                        display = '🥇 Altın'
+                        unit = 'gram'
+                    elif metal_kodu == 'GUMUS':
+                        display = '🥈 Gümüş'
+                        unit = 'gram'
+                    else:
+                        display = metal_kodu
+                        unit = 'birim'
+                    
+                    metal_guncel_tutar = metal_lot * metal_maliyet  # Canlı fiyat yoksa maliyet kullan
+                    metal_k_z = 0  # Metal fiyatını almadığımız için K/Z hesaplayamıyoruz
+                    
+                    print(f"{display:<12} | {metal_lot:<4} {unit} | Maliyet: {metal_maliyet:>6.2f} | Toplam: {metal_guncel_tutar:>8.2f} TL")
+                    toplam_portfoy_degeri += metal_guncel_tutar
+                    toplam_maliyet += metal_guncel_tutar
+            else:
+                print("Portföyünüzde henüz metal bulunmuyor.")
+            
             genel_kz_tl = toplam_portfoy_degeri - toplam_maliyet
             genel_kz_yuzde = (genel_kz_tl / toplam_maliyet) * 100 if toplam_maliyet > 0 else 0
             
-            print(f"Portföydeki Hisselerin Toplam Maliyeti: {toplam_maliyet:.2f} TL")
-            print(f"Portföydeki Hisselerin Güncel Toplam Değeri: {toplam_portfoy_degeri:.2f} TL")
+            print("\n" + "="*80)
+            print(f"Portföyün Toplam Maliyeti: {toplam_maliyet:.2f} TL")
+            print(f"Portföyün Güncel Toplam Değeri: {toplam_portfoy_degeri:.2f} TL")
             print(f"Genel Portföy K/Z Durumu: {genel_kz_tl:+.2f} TL (%{genel_kz_yuzde:+.2f})")
-            print("=" * 70)
+            print("=" * 80)
             
             log_transaction("Portföy Değerlemesi", "-", "-", "-", toplam_portfoy_degeri, budget, genel_kz_tl, genel_kz_yuzde)
             
-            sat_cevap = input("\nPortföyünüzdeki herhangi bir hisseyi satmak ister misiniz? (E/H): ").strip().upper()
+            sat_cevap = input("\nPortföyünüzdeki herhangi bir asset'i satmak ister misiniz? (E/H): ").strip().upper()
             if sat_cevap == 'E':
                 satis_yapildi = False
                 while True:
-                    satilan_hisse = input("\nHangisini satmak istiyorsunuz? (Hisse kodunu yazın): ").strip().upper()
+                    satilan_asset = input("\nHangisini satmak istiyorsunuz? (Hisse/Metal kodunu yazın): ").strip().upper()
                     
-                    if satilan_hisse in portfolio:
+                    if satilan_asset in portfolio:
                         try:
-                            sat_lot = int(input(f"Kaç lot satacaksınız? (Mevcut: {portfolio[satilan_hisse]['lot']}): "))
-                            if sat_lot <= 0 or sat_lot > portfolio[satilan_hisse]['lot']:
-                                print("Geçersiz lot miktarı!")
+                            sat_miktar = int(input(f"Kaç {portfolio[satilan_asset].get('unit', 'lot')} satacaksınız? (Mevcut: {portfolio[satilan_asset]['lot']}): "))
+                            if sat_miktar <= 0 or sat_miktar > portfolio[satilan_asset]['lot']:
+                                print("Geçersiz miktar!")
                             else:
-                                guncel_fiyat = next((item['Fiyat'] for item in evaluations if item['Hisse'] == satilan_hisse), portfolio[satilan_hisse]['maliyet'])
-                                maliyet_fiyati = portfolio[satilan_hisse]['maliyet']
+                                maliyet_fiyati = portfolio[satilan_asset]['maliyet']
+                                asset_type = portfolio[satilan_asset].get('type', 'H')
                                 
-                                kar_zarar_tl = (guncel_fiyat - maliyet_fiyati) * sat_lot
+                                # Hisse için güncel fiyat evaluations'dan al, metal için maliyet fiyat kullan
+                                if asset_type == 'H':
+                                    guncel_fiyat = next((item['Fiyat'] for item in evaluations if item['Hisse'] == satilan_asset), maliyet_fiyati)
+                                else:
+                                    guncel_fiyat = maliyet_fiyati  # Metal fiyatları canlı olarak alınmıyor
+                                
+                                kar_zarar_tl = (guncel_fiyat - maliyet_fiyati) * sat_miktar
                                 kar_zarar_yuzde = ((guncel_fiyat - maliyet_fiyati) / maliyet_fiyati) * 100 if maliyet_fiyati > 0 else 0
                                 
-                                satis_geliri = sat_lot * guncel_fiyat
+                                satis_geliri = sat_miktar * guncel_fiyat
                                 budget += satis_geliri
                                 
-                                portfolio[satilan_hisse]['lot'] -= sat_lot
-                                if portfolio[satilan_hisse]['lot'] == 0:
-                                    del portfolio[satilan_hisse]
+                                portfolio[satilan_asset]['lot'] -= sat_miktar
+                                if portfolio[satilan_asset]['lot'] == 0:
+                                    del portfolio[satilan_asset]
                                     
                                 save_portfolio(portfolio)
                                 save_budget(budget)
-                                log_transaction("Hisse Satım", satilan_hisse, sat_lot, guncel_fiyat, satis_geliri, budget, kar_zarar_tl, kar_zarar_yuzde)
-                                print(f"\n{satilan_hisse} satıldı. Satış Geliri: {satis_geliri:.2f} TL.")
+                                
+                                unit_name = 'gram' if asset_type == 'M' else 'lot'
+                                log_transaction(f"Asset Satım ({unit_name})", satilan_asset, sat_miktar, guncel_fiyat, satis_geliri, budget, kar_zarar_tl, kar_zarar_yuzde)
+                                print(f"\n{satilan_asset} satıldı. Satış Geliri: {satis_geliri:.2f} TL.")
                                 print(f"İşlemden Elde Edilen K/Z: {kar_zarar_tl:+.2f} TL (%{kar_zarar_yuzde:+.2f})")
                                 print(f"Yeni Bütçeniz: {budget:.2f} TL")
                                 satis_yapildi = True
@@ -296,13 +379,13 @@ def main():
                         except ValueError:
                             print("Lütfen geçerli bir sayı girin.")
                     else:
-                        print("Bu hisse portföyünüzde bulunmuyor.")
+                        print("Bu asset portföyünüzde bulunmuyor.")
                         
                     if not portfolio:
-                        print("\nPortföyünüzde satılacak hisse kalmadı.")
+                        print("\nPortföyünüzde satılacak asset kalmadı.")
                         break
                         
-                    baska_sat = input("\nSatmak istediğiniz başka hisse var mı? (E/H): ").strip().upper()
+                    baska_sat = input("\nSatmak istediğiniz başka asset var mı? (E/H): ").strip().upper()
                     if baska_sat != 'E':
                         break
                         
@@ -376,6 +459,14 @@ def main():
             active_profile = init_profile()
 
         elif choice == '7':
+            # BACKTEST MODU
+            try:
+                from backtest import run_backtest_interactive
+                run_backtest_interactive()
+            except Exception as e:
+                print(f"Backtest modu çalıştırılamadı: {e}")
+
+        elif choice == '8':
             print("Programdan çıkılıyor. Bol kazançlar!")
             sys.exit(0)
         else:
