@@ -1,0 +1,212 @@
+{
+  "BIMAS": {
+    "skor": 1,
+    "guven": 0.85,
+    "ozet": "Pay geri alımı ve temettü ödemesi haberleri hisse fiyatını olumlu etkiler.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "BIM MAGAZALAR Hisse Senedi Canlı Grafik - Mynet Finans",
+      "BİM (BIMAS) pay geri alım programını tamamladı: 2,5 milyon adet hisse geri alındı - CNBC-e",
+      "BIMAS hisse bölündü mü, fiyatı ne kadar oldu? Bim (BIMAS) %100 bedelsiz sermaye artırımı 2026 - Bigpara",
+      "Yarın (17 Haziran 2026) 2 şirket temettü ödemesi yapıyor. 1 lotu olanın hesabına geçiyor. - Ekonomim",
+      "BİM’den borsada dev pay geri alımı! KAP açıklaması geldi - Muğla Yenigün"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:23:39.338940"
+  },
+  "MPARK": {
+    "skor": 1,
+    "guven": 0.75,
+    "ozet": "Kurumsal ilgi ve yabancı girişi haberi hisseye hafif olumlu yansıyabilir.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "Aselsan ve MLP Sağlık dahil 7 hissede özel emirle işlem gerçekleştirildi - CNBC-e",
+      "Borsa İstanbul'da çoklu sinyal üreten hisseler haberi - Borsanın Gündemi",
+      "Aracı kurumlara göre 2026'nın yıldızı parlayacak hisseler - Habertürk",
+      "Borsa İstanbul duyurdu: 97 hissede değişikliğe gidilecek - CNBC-e",
+      "BlackRock Türk hisselerine dönüş yaptı - Forbes Türkiye"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:13:41.946057"
+  },
+  "ALBRK": {
+    "skor": 1,
+    "guven": 0.8,
+    "ozet": "Temettü teklifi ve operasyonel hamleler hisseyi kısa vadede destekleyebilir.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "ALBRK Tahmini — 2027 için Fiyat Hedefi - TradingView",
+      "Albaraka Türk \"albaFX Yurt İçi Hisse Senedi Yüzde 0 Komisyon\" kampanyası başlattı - Anadolu Ajansı",
+      "KAP *** ALBARAKA PORTFÖY YÖNETİMİ A.Ş. TEKNOLOJİ GELİŞİM GİRİŞİM SERMAYESİ YATIRIM FONU *** PGA *** Sorumluluk Beyanı - Yeni Şafak",
+      "Albaraka Türk temettü teklifini açıkladı - Doviz.com",
+      "ALBARAKA TURK - KAP Haberleri - 2026-03-27 tarihli - Bloomberght"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:13:47.863925"
+  },
+  "KTLEV": {
+    "skor": 2,
+    "guven": 0.9,
+    "ozet": "SPK onaylı %238 bedelsiz sermaye artırımı hisseye güçlü alım getirebilir.",
+    "etiket": "COK_OLUMLU",
+    "haberler": [
+      "MSCI'dan Borsa İstanbul için kritik karar: 7 hisse endekse giriyor, 2 hisse çıkıyor! - CNBC-e",
+      "Borsada en çok kazandıran ve kaybettiren hisseler - Diken",
+      "Borsa yatırımcısından 1 milyar TL’lik net alış. İşte en en fazla alış yapılan hisseler - Ekonomim",
+      "SPK onayladı! Katılımevim'den (KTLEV) %238 bedelsiz sermaye artırımı - CNBC-e",
+      "Borsada en çok kazandıran ve kaybettiren hisseler - Diken"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:19:48.218724"
+  },
+  "ESCOM": {
+    "skor": 2,
+    "guven": 0.9,
+    "ozet": "Yüzde 1309 bedelsiz ve fon alımları kısa vadede güçlü yükselişi destekliyor.",
+    "etiket": "COK_OLUMLU",
+    "haberler": [
+      "ESCOM Hisse Grafiği, Fiyatı, Yorumu — BIST:ESCOM - TradingView",
+      "Escort Teknoloji Pax Animi’ye Yatırım Açıklarken Hisseler Pozitif Kaldı - Paratic Haber",
+      "Piyasa değeri 2.4 milyar liraya ulaştı, Finlandiyalı Fonun payı yüzde 6’ya çıktı - Ekonomi Gazetesi",
+      "Emeklilik fonlarının en fazla aldığı 10 hisse - Ekonomim",
+      "Bugün bir hissenin fiyatında düzeltme var: Yüzde 1309 bedelsiz... - Ekonomist"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:20:00.980576"
+  },
+  "BAHKM": {
+    "skor": -2,
+    "guven": 0.9,
+    "ozet": "Fabrikadaki yangın ve hissenin taban olması kısa vadede sert baskı yaratır.",
+    "etiket": "COK_OLUMSUZ",
+    "haberler": [
+      "Bahadır Kimya’da yangın sonrası hisseler işleme açıldı haberi - Borsanın Gündemi",
+      "Bahadır Kimya'nın fabrikasında yangın çıktı: Hisseler taban oldu, işlemler askıya alındı - Dünya Gazetesi",
+      "BIST KOBİ Sanayi Endeksi’ne 17 hisse dahil edilecek - borsagundem.com.tr",
+      "Bahadır Kimya fabrikasında yangın: Önce devre kesti, sonra işleme kapatıldı haberi - Borsanın Gündemi",
+      "Borsada BAHKM Hissesi İşleme Kapatıldı! Patron Açıklama Yaptı - Para Ajansı"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:20:10.189713"
+  },
+  "CELHA": {
+    "skor": 1,
+    "guven": 0.8,
+    "ozet": "Tedbirlerin kalkması ve pay artışı haberi kısa vadede hisseyi olumlu etkiler.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "Borsa İstanbul'da 6 hisse için yeni dönem: Tedbirler bugün sona eriyor - CNBC-e",
+      "Bugün 6 hissenin üzerindeki yasaklar kalkıyor - borsagundem.com.tr",
+      "CELIK HALAT - KAP Haberleri - 2026-06-02 tarihli - Bloomberght",
+      "CELHA Hisse Grafiği, Fiyatı, Yorumu — BIST:CELHA - TradingView",
+      "Kayserili iş adamı, dev fabrikadaki hisselerini yüzde 75'e yükseltti! - Kayseri Olay Haber"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:20:16.521597"
+  },
+  "EBEBK": {
+    "skor": -1,
+    "guven": 0.65,
+    "ozet": "Haberlerdeki olumsuz algı ve beklenti düşüşü kısa vadede baskı yaratabilir.",
+    "etiket": "OLUMSUZ",
+    "haberler": [
+      "Borsanın gözdesi 17 hisse için beklentiler değişti! Bim, Aselsan, THY, Pegasus, Migros, Şok, Astor - Ekonomim",
+      "Borsa İstanbul’da 25 şirketten temettü müjdesi - borsagundem.com.tr",
+      "EBEBK Hisse Grafiği, Fiyatı, Yorumu — BIST:EBEBK - TradingView",
+      "Trend Hisseden Hayal Kırıklığına - ParaMedya",
+      "Ebebek Halka Arzı: Ebebek Ne Zaman İşlem Görecek? Ebebek Kime Ait? - Onedio"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:20:22.213534"
+  },
+  "DOFRB": {
+    "skor": 1,
+    "guven": 0.75,
+    "ozet": "Halka arz ve tavan hareketleri kısa vadede pozitif.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "DOFRB Hisse Grafiği, Fiyatı, Yorumu — BIST:DOFRB - TradingView",
+      "Tavan üstüne tavan yaptılar: Borsa İstanbul’da 2 şirketten “olağandışı fiyat hareketi” açıklaması - CNBC-e",
+      "DOF Robotik halka arz | DOF Robotik hisse | DOF Robotics işlem tarihi | DOF Robotics halka arz ne zaman işlem görecek? Dof Robotics kaç lot verdi? DOF Robotics halka arz sonuçları açıklandı ? DOF Robotics kaç TL? Dof kaç lot verdi? | Türkiye Ekonomisi H - GZT",
+      "Dof Robotik’in Borsa İstanbul’da işlem görme tarihi belirlendi - Investing.com Türkiye",
+      "Dof Robotik Sanayi (DOFRB) borsada ne zaman işlem görecek? Dof Robotik Sanayi halka arz sonuçları açıklandı mı, kaç lot verdi? - Bigpara"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:20:49.746941"
+  },
+  "ODAS": {
+    "skor": 2,
+    "guven": 0.85,
+    "ozet": "Özbekistan işbirliği ve tavan ivmesi kısa vadede hisseyi güçlü destekler.",
+    "etiket": "COK_OLUMLU",
+    "haberler": [
+      "Hisse tavan oldu: BIST 30'daki enerji şirketinden Özbekistan’la stratejik maden işbirliği - CNBC-e",
+      "Göstergeleri al sinyali veren BIST 100 hisseleri hangileri? - getmidas.com",
+      "BIST 100’de bugün en çok hangi hisseler kazandırdı? - Investing.com Türkiye",
+      "BIST100'de acı gerçek: Devlerin kurtaramadığı kayıp... Bir yıl boşa gitti - Odatv",
+      "Borç Yükünü En Hızlı Eriten Hisseler - borsagundem.com.tr"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:22:06.382644"
+  },
+  "AKBNK": {
+    "skor": 1,
+    "guven": 0.65,
+    "ozet": "Artan hacim, teknik taramalar ve özel emir işlemleri hafif olumlu.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "AKBANK Hisse Senedi Canlı Grafik - Mynet Finans",
+      "BİST hisse taraması: Getiri, ağırlıklı ortalama, işlem adedi ve hacmi artan 10 şirket haberi - Borsanın Gündemi",
+      "AKBNK Tahmini — 2027 için Fiyat Hedefi - TradingView",
+      "AKBANK (AKBNK) 12 Ağustos Çarşamba 2026 Günlük Teknik Analiz - Mynet",
+      "Akbank, Aselsan, Şişecam... Borsa İstanbul'daki 8 hissede özel emirle işlem yapıldı - CNBC-e"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:22:23.180506"
+  },
+  "TABGD": {
+    "skor": -1,
+    "guven": 0.8,
+    "ozet": "Endeksten çıkarılma ve temettü düşüşü kısa vadeli fiyatı baskılayabilir.",
+    "etiket": "OLUMSUZ",
+    "haberler": [
+      "TABGD Tahmini — 2027 için Fiyat Hedefi - TradingView",
+      "Milyonların takibindeki o hisseler endeksten çıkarıldı: İşte BIST 50 ve BIST 100'de yeni liste - CNBC-e",
+      "ATAKP ve TABGD, 4 Haziran’dan itibaren temettü düşülmüş işlem görecek - Investing.com Türkiye",
+      "TAB Gıda'nın hisse başına 5 TL brüt temettü ödemesi genel kurulda onaylandı - Foreks.com",
+      "Borsa İstanbul üçüncü çeyrek endeks değişikliklerini açıkladı - Bloomberght"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:22:30.100285"
+  },
+  "TUPRS": {
+    "skor": 1,
+    "guven": 0.85,
+    "ozet": "Rekor seviye ve yabancı ilgisi kısa vadeli yükseliş momentumunu destekliyor.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "TUPRS Tahmini — 2027 için Fiyat Hedefi - TradingView",
+      "BIST 100’de Son Durum: TUPRS ve DOFRB Teknik İncelemesi - Investing.com Türkiye",
+      "BIST 100 güne ralliyle başladı: Sadece 4 hissede yön ayrıştı - CNBC-e",
+      "Tüpraş Hisseleri Rekor Tazeledi! TUPRS 319,75 TL’yi Gördü, Zirveye Bir Adım Kaldı - Bölgenin Sesi Gazetesi",
+      "Yabancı takas oranlarında TUPRS ve TCELL öne çıkıyor - hibya.com"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:22:41.391258"
+  },
+  "AGHOL": {
+    "skor": 2,
+    "guven": 0.85,
+    "ozet": "Dev satın alma haberi, analist hedef fiyatı ve al sinyalleri pozitif yansır.",
+    "etiket": "COK_OLUMLU",
+    "haberler": [
+      "BİST’te hangi hisselerde hareket güçleniyor? 4 kriter 10 şirketi gösteriyor haberi - Borsanın Gündemi",
+      "AGHOL’dan dev satın alım, Yeşil Global’den Nasdaq hamlesi ve OTTO’dan yeni iş birliği: BIST şirketlerinden güncel haberler - Investing.com Türkiye",
+      "Milyonların takibindeki o hisseler endeksten çıkarıldı: İşte BIST 50 ve BIST 100'de yeni liste - CNBC-e",
+      "Borsada 9 hisse için hedef fiyat: BIMAS ve AGHOL listeye girdi - Paratic Haber",
+      "Göstergeleri al sinyali veren BIST 100 hisseleri hangileri? (30 Nisan) - getmidas.com"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-13T11:22:47.995382"
+  }
+}

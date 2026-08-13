@@ -4,3 +4,7 @@ ta
 requests
 beautifulsoup4
 colorama
+
+# Yapay Zeka / Haber Analizi (opsiyonel — ikisinden birini kurun)
+# google-genai   # Gemini (önerilen, ücretsiz): pip install google-genai
+# openai         # OpenAI GPT:                  pip install openai

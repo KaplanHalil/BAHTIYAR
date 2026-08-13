@@ -25,32 +25,36 @@ import os
 class BacktestEngine:
     """Backtest simülasyonunu yönetir"""
 
-    def __init__(self, initial_budget=10000, start_date=None, end_date=None, max_stocks=3):
+    def __init__(self, initial_budget=10000, start_date=None, end_date=None,
+                 max_stocks=3, session_mode='daily'):
         """
         Args:
             initial_budget: Başlangıç bütçesi (TL)
-            start_date: Başlangıç tarihi (None ise 2 yıl öncesi)
-            end_date: Bitiş tarihi (None ise bugün)
-            max_stocks: Maksimum hisse sayısı (portföyde aynı anda tutulacak)
+            start_date    : Başlangıç tarihi (None ise 2 yıl öncesi)
+            end_date      : Bitiş tarihi (None ise bugün)
+            max_stocks    : Portföyde aynı anda tutulacak maks hisse sayısı
+            session_mode  : 'daily'       → her gün 1 analiz (Close)
+                            'twice_daily' → her gün 2 analiz
+                                            AM(11:00): dünkü veri + Open fiyatıyla alım
+                                            PM(16:00): bugünkü veri + Close fiyatıyla sat/al
         """
         self.initial_budget = initial_budget
         self.current_budget = initial_budget
-        # Portfolio yapısı: {ticker (suffix'SİZ): {'lot': X, 'maliyet': Y, 'type': 'H', 'buy_date': Z}}
         self.portfolio = {}
-        self.transactions = []   # İşlem geçmişi
-        self.daily_values = []   # Her gün portföy değeri
+        self.transactions = []
+        self.daily_values = []
         self.max_stocks = max_stocks
+        self.session_mode = session_mode   # 'daily' | 'twice_daily'
         self.stop_loss_pct = -8.0
         self.trailing_stop_pct = -10.0
         self.take_profit_pct = 18.0
         self.cooldown_days = 30
         self.cooldown_until = {}
 
-        # Tarihler
         if end_date is None:
             end_date = datetime.now()
         if start_date is None:
-            start_date = end_date - timedelta(days=730)  # 2 yıl öncesi
+            start_date = end_date - timedelta(days=730)
 
         self.start_date = start_date
         self.end_date = end_date
@@ -142,67 +146,126 @@ class BacktestEngine:
     #  ANA SİMÜLASYON DÖNGÜSÜ
     # ------------------------------------------------------------------ #
 
+    # ------------------------------------------------------------------ #
+    #  YARDIMCI: Belirli gün için Open fiyatı
+    # ------------------------------------------------------------------ #
+
+    def _get_open_price(self, all_data, ticker, target_date):
+        """
+        Belirtilen tarihte hissenin açılış (Open) fiyatını döndürür.
+        Bulunamazsa son kapanış fiyatını döndürür.
+        """
+        ticker_key = f"{ticker}.IS" if not ticker.endswith('.IS') else ticker
+        df = all_data.get(ticker_key)
+        if df is None:
+            df = all_data.get(ticker)
+        if df is None or df.empty:
+            return None
+        day_mask = df.index.date == target_date.date()
+        day_df   = df[day_mask]
+        if not day_df.empty and 'Open' in day_df.columns:
+            return float(day_df['Open'].iloc[0])
+        # Fallback: önceki günün kapanışı
+        past = df[df.index.date < target_date.date()]
+        return float(past['Close'].iloc[-1]) if not past.empty else None
+
+    # ------------------------------------------------------------------ #
+    #  ANA SİMÜLASYON DÖNGÜSÜ
+    # ------------------------------------------------------------------ #
+
     def run_simulation(self):
-        """Backtest simülasyonunu çalıştır"""
+        """Backtest simülasyonunu çalıştır."""
+        mode_label = {
+            'daily':       'Günlük (her gün 1 analiz — Close)',
+            'twice_daily': 'Günde 2x (AM: Open | PM: Close)',
+        }.get(self.session_mode, self.session_mode)
+
         print("\n" + "=" * 80)
         print("BACKTEST SİMÜLASYONU BAŞLANDIYOR")
         print("=" * 80)
-        print(f"Başlangıç Bütçesi: {self.initial_budget:.2f} TL")
-        print(f"Dönem: {self.start_date.date()} - {self.end_date.date()}")
-        print(f"Maksimum Hisse: {self.max_stocks}")
+        print(f"Başlangıç Bütçesi  : {self.initial_budget:.2f} TL")
+        print(f"Dönem              : {self.start_date.date()} - {self.end_date.date()}")
+        print(f"Maksimum Hisse     : {self.max_stocks}")
+        print(f"Analiz Sıklığı     : {mode_label}")
         print("=" * 80 + "\n")
 
-        # Tüm tarihi veriyi tek seferde çek
         all_data = self.fetch_historical_data()
-
         if not all_data:
             print("Veri çekme başarısız!")
             return False
 
-        # Simülasyon tarihleri (haftalık analiz — performans dengesi)
-        trading_dates = self._get_trading_dates(all_data)
+        trading_slots = self._get_trading_dates(all_data)
+        print(f"Simülasyon {len(trading_slots)} slot için çalışacak "
+              f"({'~' + str(len(trading_slots)//2) + ' gün' if self.session_mode == 'twice_daily' else str(len(trading_slots)) + ' gün'})...\n")
 
-        print(f"Simülasyon {len(trading_dates)} işlem günü için çalışacak...\n")
+        last_date_logged = None   # Günlük değerleme için tekrar kaydı önle
 
-        for i, current_date in enumerate(trading_dates):
-            # İlerleme raporu (her 20 günde bir)
-            if i % 20 == 0:
-                total_val = self._calculate_portfolio_value(current_date, self.get_data_for_date(all_data, current_date)) + self.current_budget
+        for i, slot_dt in enumerate(trading_slots):
+
+            # ── Session tespiti (twice_daily modunda) ──────────────── #
+            is_am = (self.session_mode == 'twice_daily' and slot_dt.hour == 11)
+            is_pm = (self.session_mode == 'twice_daily' and slot_dt.hour == 16)
+            trade_date = slot_dt.normalize()   # saat bilgisi olmadan tarih
+
+            # ── İlerleme raporu (her 40 slotta bir) ───────────────── #
+            if i % 40 == 0:
+                val = (self._calculate_portfolio_value(
+                           trade_date, self.get_data_for_date(all_data, trade_date))
+                       + self.current_budget)
+                session_tag = ' [AM]' if is_am else (' [PM]' if is_pm else '')
                 print(
-                    f"[{i:>4}/{len(trading_dates)}] {current_date.date()} | "
+                    f"[{i:>4}/{len(trading_slots)}] {trade_date.date()}{session_tag} | "
                     f"Bütçe: {self.current_budget:>10.2f} TL | "
                     f"Portföy: {len(self.portfolio):>2} hisse | "
-                    f"Toplam: {total_val:>10.2f} TL"
+                    f"Toplam: {val:>10.2f} TL"
                 )
 
-            # O güne kadar olan veri penceresi
-            data_for_analysis = self.get_data_for_date(all_data, current_date)
+            # ── Veri penceresi seçimi ──────────────────────────────── #
+            if is_am:
+                # AM: analiz için DÜN'ün verisini kullan
+                prev_date = trade_date - timedelta(days=1)
+                data_for_analysis = self.get_data_for_date(all_data, prev_date)
+            else:
+                # PM veya daily: bugünün kapanış verisini kullan
+                data_for_analysis = self.get_data_for_date(all_data, trade_date)
 
             if not data_for_analysis:
                 continue
 
-            # ── 1. Mevcut portföyü değerlendir ve sat tavsiyelerini işle ──
-            if self.portfolio:
-                self._evaluate_and_sell(current_date, data_for_analysis)
+            # ── AM Seansı: sadece ALIM ────────────────────────────── #
+            if is_am:
+                available_slots = self.max_stocks - len(self.portfolio)
+                if available_slots > 0 and self.current_budget > 100:
+                    self._get_recommendations_and_buy(
+                        trade_date, data_for_analysis, available_slots,
+                        price_type='open', all_data=all_data
+                    )
+                continue   # AM'de satış yok, döngüye devam
 
-            # ── 2. Yeni alım yap (portföy dolmamışsa ve bütçe varsa) ──
+            # ── PM veya Daily: SATIM + ALIM ───────────────────────── #
+            if self.portfolio:
+                self._evaluate_and_sell(trade_date, data_for_analysis)
+
             available_slots = self.max_stocks - len(self.portfolio)
             if available_slots > 0 and self.current_budget > 100:
                 self._get_recommendations_and_buy(
-                    current_date, data_for_analysis, available_slots
+                    trade_date, data_for_analysis, available_slots
                 )
 
-            # ── 3. Günlük portföy değerlemesi ──
-            portfolio_val = self._calculate_portfolio_value(current_date, data_for_analysis)
-            self.daily_values.append({
-                'date': current_date,
-                'portfolio_value': portfolio_val,
-                'budget': self.current_budget,
-                'total_value': portfolio_val + self.current_budget,
-                'portfolio_count': len(self.portfolio)
-            })
+            # ── Günlük portföy değerlemesi (her tarih için 1 kez) ── #
+            date_key = trade_date.date()
+            if date_key != last_date_logged:
+                portfolio_val = self._calculate_portfolio_value(trade_date, data_for_analysis)
+                self.daily_values.append({
+                    'date': trade_date,
+                    'portfolio_value': portfolio_val,
+                    'budget': self.current_budget,
+                    'total_value': portfolio_val + self.current_budget,
+                    'portfolio_count': len(self.portfolio)
+                })
+                last_date_logged = date_key
 
-        print(f"\n✓ Simülasyon {len(trading_dates)} gün için tamamlandı.\n")
+        print(f"\n✓ Simülasyon {len(trading_slots)} slot tamamlandı.\n")
         return True
 
     # ------------------------------------------------------------------ #
@@ -211,48 +274,54 @@ class BacktestEngine:
 
     def _get_trading_dates(self, data_dict):
         """
-        Veri setindeki tüm işlem tarihlerini belirle.
-        Simülasyon start_date'den itibaren haftada bir analiz yapar.
+        İşlem tarihlerini döndürür.
+
+        'daily'       → her borsa gününde 1 timestamp (kapanış saati)
+        'twice_daily' → her borsa gününde 2 timestamp:
+                        - 11:00 (AM) : dünkü kapanış verisiyle alım kararı
+                        - 16:00 (PM) : bugünkü kapanış verisiyle sat/al kararı
         """
-        # Tüm benzersiz tarihleri topla
         all_dates = set()
         for ticker, df in data_dict.items():
             all_dates.update(df.index.date)
 
         sorted_dates = sorted(list(all_dates))
 
-        # Sadece start_date'den itibaren olan günleri al
         start = self.start_date.date()
-        end = self.end_date.date()
+        end   = self.end_date.date()
         filtered = [d for d in sorted_dates if start <= d <= end]
 
-        # Her işlem gününde analiz yap
-        daily_dates = [pd.Timestamp(d) for d in filtered]
+        if self.session_mode == 'twice_daily':
+            slots = []
+            for d in filtered:
+                slots.append(pd.Timestamp(d).replace(hour=11))  # AM — sabah seansı
+                slots.append(pd.Timestamp(d).replace(hour=16))  # PM — kapanış seansı
+            return slots
+        else:
+            return [pd.Timestamp(d) for d in filtered]
 
-        return daily_dates
-
-    def _get_recommendations_and_buy(self, current_date, data_for_analysis, available_slots):
+    def _get_recommendations_and_buy(self, current_date, data_for_analysis,
+                                      available_slots, price_type='close', all_data=None):
         """
-        Teknik analiz ile hisse tavsiyesi al, bütçeye göre al.
-        - analyze_stocks() kullanılır
-        - Portföyde olmayan hisseler filtrelenir
+        Teknik analiz ile hisse tavsiyesi alır ve bütçeye göre alım yapar.
+
+        Args:
+            price_type : 'close' → analizden gelen fiyat (Close)
+                         'open'  → AM seansı; today's Open fiyatı kullanılır
+            all_data   : price_type='open' olduğunda gerekli; tüm tarihsel veri
         """
         try:
             from analyzer import analyze_stocks
 
-            # Hisse analizi
             recommendations = analyze_stocks(data_for_analysis)
-
             if not recommendations:
                 return
 
-            # Portföyde olmayan varlıkları filtrele
             new_recs = [
                 r for r in recommendations
                 if r['Hisse'] not in self.portfolio
                 and self.cooldown_until.get(r['Hisse'], self.start_date) <= current_date
             ]
-
             if not new_recs:
                 return
 
@@ -261,37 +330,42 @@ class BacktestEngine:
             allocations, _ = allocate_budget(
                 self.current_budget, new_recs, len(new_recs)
             )
-
             if not allocations:
                 return
 
             for item in allocations:
-                ticker = item['Hisse']          # suffix'siz hisse
-                fiyat  = item['Fiyat']
-                lot    = item['Lot']
-                maliyet = item['Toplam Maliyet']
+                ticker     = item['Hisse']
                 asset_type = item.get('AssetType', 'HISSE')
 
-                if lot <= 0:
+                # AM seansında Open fiyatını kullan
+                if price_type == 'open' and all_data is not None:
+                    open_px = self._get_open_price(all_data, ticker, current_date)
+                    fiyat   = open_px if open_px else item['Fiyat']
+                else:
+                    fiyat   = item['Fiyat']
+
+                lot     = item['Lot']
+                maliyet = fiyat * lot
+
+                if lot <= 0 or maliyet > self.current_budget:
                     continue
 
                 self.portfolio[ticker] = {
-                    'lot': lot,
-                    'maliyet': fiyat,
-                    'type': asset_type,
-                    'buy_date': current_date,
+                    'lot': lot, 'maliyet': fiyat,
+                    'type': asset_type, 'buy_date': current_date,
                     'peak_price': fiyat
                 }
                 self.current_budget -= maliyet
 
+                session_tag = ' (AM-Open)' if price_type == 'open' else ''
                 self.transactions.append({
-                    'date': current_date,
-                    'type': 'BUY',
-                    'ticker': ticker,
-                    'lots': lot,
-                    'price': fiyat,
-                    'amount': maliyet,
-                    'asset_type': asset_type,
+                    'date'            : current_date,
+                    'type'            : 'BUY',
+                    'ticker'          : ticker,
+                    'lots'            : lot,
+                    'price'           : fiyat,
+                    'amount'          : maliyet,
+                    'asset_type'      : asset_type + session_tag,
                     'budget_remaining': self.current_budget
                 })
 
@@ -360,7 +434,9 @@ class BacktestEngine:
         for ticker, info in self.portfolio.items():
             try:
                 ticker_key = f"{ticker}.IS" if not ticker.endswith('.IS') else ticker
-                df = data_for_analysis.get(ticker_key) or data_for_analysis.get(ticker)
+                df = data_for_analysis.get(ticker_key)
+                if df is None:
+                    df = data_for_analysis.get(ticker)
                 if df is None or df.empty:
                     price = info['maliyet']
                 else:
@@ -554,14 +630,27 @@ def run_backtest_interactive():
         except ValueError:
             print("Hatalı giriş.")
 
-    end_date = datetime.now()
+    # ── Analiz sıklığı ──────────────────────────────────────────────── #
+    print("\nAnaliz Sıklığı:")
+    print("  1. Günlük     — Her gün 1 analiz (kapanış fiyatı)")
+    print("  2. Günde 2 kez — Sabah AM(~11:00, Open) + Akşam PM(~16:00, Close)")
+    while True:
+        sik = input("Seçiminiz [Default: 1]: ").strip() or '1'
+        if sik in ('1', '2'):
+            break
+        print("Lütfen 1 veya 2 girin.")
+
+    session_mode = 'daily' if sik == '1' else 'twice_daily'
+
+    end_date   = datetime.now()
     start_date = end_date - timedelta(days=days)
 
     engine = BacktestEngine(
         initial_budget=initial_budget,
         start_date=start_date,
         end_date=end_date,
-        max_stocks=max_stocks
+        max_stocks=max_stocks,
+        session_mode=session_mode
     )
 
     if engine.run_simulation():

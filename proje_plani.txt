@@ -134,4 +134,60 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
 - `BIST_STOCKS` değişkeni modül yüklenirken `fetch_helal_stocks()` çağrısıyla dinamik olarak doldurulur.
 - Teknik analiz, portföy optimizasyonu ve backtest motoru bu değişiklikten etkilenmez; hepsi `BIST_STOCKS` üzerinden çalışmaya devam eder.
 
+## 24. YAPAY ZEKA DESTEKLİ HABER DUYGU ANALİZİ [TAMAMLANDI]
 
+- `news_analyzer.py` modülü oluşturuldu: Google News RSS haber çekme + AI sentiment motoru.
+- Desteklenen AI sağlayıcıları: Google Gemini (gemini-1.5-flash, önerilen) ve OpenAI (gpt-4o-mini).
+- API anahtarı yönetimi: `ai_config.json` yerel config dosyası veya ortam değişkeni (GEMINI_API_KEY / OPENAI_API_KEY).
+- Önbellek: Sentiment sonuçları `sentiment_cache.json`'a 6 saatlik TTL ile kaydedilir; gereksiz API çağrısı önlenir.
+- `analyzer.py`'e `enrich_with_sentiment()` fonksiyonu eklendi: teknik skor + sentiment skoru = efektif skor.
+- Sentiment skoru: -2 (çok olumsuz) ile +2 (çok olumlu) arasında; teknik skoru artırır veya düşürür.
+- Menü 2 (Piyasa Analizi): AI aktifse top-10 hisse için otomatik haber analizi yapılır, sonuçlar ekrana yansıtılır.
+- Ana menüye "Yapay Zeka / Haber Analizi Ayarları" (Seçenek 8) eklendi: API anahtar girişi, önbellek temizleme, tek hisse test analizi.
+- Sistem AI yapılandırılmamışsa yalnızca teknik analiz ile çalışmaya devam eder (geriye dönük uyumluluk korundu).
+
+## 25. AI PERFORMANS ÖLÇÜMÜ — İLERİYE DÖNÜK SİNYAL TAKİBİ [TAMAMLANDI]
+- `signal_tracker.py` modülü oluşturuldu: her AL sinyalini tarih, giriş fiyatı, teknik skor ve AI skoru ile `signal_log.json`'a kaydeder.
+- `update_outcomes()` fonksiyonu: kaydedilen sinyaller için 5, 10 ve 20 gün sonrasındaki kapanış fiyatını yfinance'ten çeker ve gerçek getiriyi hesaplar.
+- `generate_performance_report()` fonksiyonu: sinyalleri üç gruba ayırır — (1) AI katkısı olmayan saf teknik, (2) AI pozitif katkılı (+1/+2), (3) AI negatif katkılı (-1/-2).
+- Her grup için ortalama getiri karşılaştırması yapılır: "AI Katkısı = AI+ ort. getiri − Teknik-Only ort. getiri".
+- Neden gerçek backtest değil ileriye dönük test? Tarihi haber verisi (Google News RSS) mevcut değil; eski tarihlere ait haber çekilemediği için backtest look-ahead bias içerir.
+- Yeni Menü 10 "📊 AI Performans Raporu": güncel fiyatları çekerek sinyal takip raporunu ekrana basar.
+- Menü 2'de her analiz çalıştırıldığında sinyaller otomatik kaydedilir; birkaç hafta sonra istatistiksel olarak anlamlı sonuçlar birikir.
+
+## 26. AI HABER ANALİZİNİN PORTFÖY EKRANINA ENTEGRASYONu [TAMAMLANDI]
+- Menü 3 (Portföyü Görüntüle / Sat-Tut Tavsiyeleri): teknik değerlendirmenin yanına AI haber sentiment analizi eklendi.
+- Portföydeki her hisse için iki satır gösterilir:
+    - 📈 Teknik: "Güçlü Tut / Dikkatli Tut / Sat" kararı + teknik nedenler
+    - 🟢/🔴 AI: Sentiment etiketi, skor ve Türkçe haber özeti
+- Akıllı AI uyarı kuralları eklendi (teknik karar + haber çelişkisinde devreye girer):
+    - Teknik "Güçlü Tut" + AI "Çok Olumsuz" → ⚠️ AI SAT UYARISI (nihai karar: Dikkatli Tut)
+    - Teknik "Güçlü Tut" + AI "Olumsuz" → ⚡ AI DİKKAT (nihai karar: Dikkatli Tut)
+    - Teknik "Sat" + AI "Çok Olumlu / Olumlu" → 💡 AI NOT: satış kararını gözden geçir
+- Portföy özet satırı K/Z değeri yeşil/kırmızı renkli gösterilecek şekilde güncellendi.
+- AI yapılandırılmamışsa portföy ekranı eskisi gibi yalnızca teknik analiz gösterir.
+
+## 27. GEMİNİ API MODEL YÖNETİMİ — OTOM ATİK FALLBACK [TAMAMLANDI]
+- `gemini-2.0-flash` ve `gemini-2.5-flash` modellerinin kullanımdan kaldırıldığı tespit edildi.
+- `news_analyzer.py` içindeki `_analyze_gemini()` fonksiyonu yeniden yazıldı:
+    - Model listesi: `['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest']`
+    - Birinci model başarısız olursa sıradaki denenir; tüm denemeler başarısız olursa stderr'a uyarı yazılır.
+    - Google'ın modelleri değiştirmesi durumunda kod otomatik olarak çalışmaya devam eder.
+- `google-generativeai` (deprecated) → `google-genai` (v2, aktif) paketine geçiş tamamlandı.
+- `venv` sanal ortamı oluşturuldu; sistem paket çakışması çözüldü.
+- Python 3.14 ile `google-genai` kütüphanesinin ürettiği `DeprecationWarning` (\_UnionGenericAlias) `warnings.filterwarnings` ile bastırıldı.
+- Hata ayıklama için `except Exception: pass` yerine stderr'a açıklayıcı mesaj bırakan yapıya geçildi.
+
+## 28. BACKTEST MODU — GÜNDE 2 KEZ (TWICE-DAILY) ANALİZ [TAMAMLANDI]
+- `BacktestEngine`'e `session_mode` parametresi eklendi: `'daily'` (varsayılan) veya `'twice_daily'`.
+- `twice_daily` modunda her borsa işlem günü iki slota bölünür:
+    - **AM (~11:00):** Dünkü kapanış verisiyle teknik analiz → bugünün **Open** fiyatından ALIM yapılır.
+    - **PM (~16:00):** Bugünkü kapanış verisiyle teknik analiz → Close fiyatından SATIM + ALIM yapılır.
+- `_get_trading_dates()` fonksiyonu güncellendi: `twice_daily` modunda her gün için hour=11 ve hour=16 timestamp'leri üretir.
+- `_get_open_price()` yardımcı fonksiyonu eklendi: yfinance verisi içinden belirli gün için Open fiyatını çeker; bulunamazsa önceki günün kapanışına döner.
+- `_get_recommendations_and_buy()` fonksiyonuna `price_type` ve `all_data` parametreleri eklendi:
+    - AM seansında Open fiyatıyla işlem yapılır; işlem loğuna "(AM-Open)" etiketi eklenir.
+- Günlük portföy değerlemesi: `twice_daily` modunda PM seansından sonra yalnızca bir kez kaydedilir (duplicate önlenir).
+- `run_backtest_interactive()` güncellendi: kullanıcıya "Analiz Sıklığı" sorusu sorulur (1=Günlük, 2=Günde 2 kez).
+- Backtest rapor başlığına "Analiz Sıklığı" satırı eklendi.
+- **Hata Düzeltmesi:** pandas DataFrame nesnelerinde `df1 or df2` mantıksal ifadesinin fırlattığı `ValueError: The truth value of a DataFrame is ambiguous` hatası giderildi (`_get_open_price` ve `_calculate_portfolio_value` açık `is None` kontrolüne geçirildi).

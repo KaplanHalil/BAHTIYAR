@@ -396,3 +396,47 @@ def analyze_all_assets(data_dict):
     """
     return analyze_stocks(data_dict)
 
+
+def enrich_with_sentiment(recommendations: list[dict],
+                           sentiment_results: dict[str, dict]) -> list[dict]:
+    """
+    Teknik analiz tavsiyelerine AI haber duygu skoru ekler.
+
+    Her tavsiye için:
+      - 'Sentiment'    : ham sentiment dict
+      - 'EfektiveSkor' : teknik skor + sentiment skoru (0-12 arası, cap 12)
+      - 'Nedenler'     : sentiment özeti eklenerek genişletilir
+
+    Args:
+        recommendations  : analyze_stocks() çıktısı
+        sentiment_results: {'THYAO': {skor, guven, ozet, ...}, ...}
+
+    Returns:
+        Zenginleştirilmiş tavsiye listesi (skor'a göre yeniden sıralanmış)
+    """
+    from news_analyzer import ETIKET_SEMBOL
+
+    enriched = []
+    for r in recommendations:
+        ticker = r['Hisse']
+        sent = sentiment_results.get(ticker)
+        r = dict(r)   # kopya al, orijinali değiştirme
+
+        if sent and sent.get('kaynak') != 'yok':
+            sent_skor = int(sent.get('skor', 0))
+            efektif   = r['Skor'] + sent_skor
+            sembol    = ETIKET_SEMBOL.get(sent.get('etiket', 'NOTR'), '⚪')
+
+            r['Sentiment']    = sent
+            r['EfektiveSkor'] = efektif
+            r['Nedenler']    += f" | {sembol} Haber: {sent.get('ozet', '')}"
+        else:
+            r['Sentiment']    = None
+            r['EfektiveSkor'] = r['Skor']
+
+        enriched.append(r)
+
+    # Efektif skora göre yeniden sırala
+    enriched.sort(key=lambda x: (-x['EfektiveSkor'], x['RSI']))
+    return enriched
+

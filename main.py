@@ -4,9 +4,20 @@ import yfinance as yf
 
 from budget_manager import load_budget, save_budget, load_portfolio, save_portfolio, set_profile, get_all_profiles, delete_profile, reset_current_profile
 from data_fetcher import fetch_data
-from analyzer import analyze_stocks, evaluate_portfolio
+from analyzer import analyze_stocks, evaluate_portfolio, enrich_with_sentiment
 from optimizer import allocate_budget
 from logger import log_transaction, set_logger_profile
+from stock_list_manager import (
+    get_stock_list_with_names, add_stock, remove_stock,
+    update_stock_name, stock_count
+)
+from news_analyzer import (
+    is_ai_configured, get_active_provider, get_api_key,
+    load_ai_config, save_ai_config, analyze_sentiment_batch,
+    get_sentiment_score, format_sentiment, clear_sentiment_cache,
+    ETIKET_SEMBOL
+)
+from signal_tracker import record_signals, print_performance_report
 from shutil import get_terminal_size
 
 try:
@@ -23,6 +34,201 @@ except Exception:
 
 def print_separator():
     print("=" * 70)
+
+
+def manage_ai_settings():
+    """AI / Haber Analizi Ayarları menüsü."""
+    while True:
+        ai_ok      = is_ai_configured()
+        provider   = get_active_provider()
+        gemini_key = get_api_key('gemini')
+        openai_key = get_api_key('openai')
+
+        print("\n" + "=" * 70)
+        print(_colored("     🤖 YAPAY ZEKA / HABER ANALİZİ AYARLARI", 'cyan', True))
+        print("=" * 70)
+
+        if ai_ok:
+            print(_colored(f"  ✅ AI Aktif — Sağlayıcı: {provider.upper()}", 'green', True))
+        else:
+            print(_colored("  ❌ AI Yapılandırılmamış — Haber analizi devre dışı.", 'red'))
+
+        print(f"  Gemini API Key : {'*' * 8 + gemini_key[-4:] if gemini_key else _colored('Girilmemiş', 'yellow')}")
+        print(f"  OpenAI API Key : {'*' * 8 + openai_key[-4:] if openai_key else _colored('Girilmemiş', 'yellow')}")
+        print("-" * 70)
+        print("1. Google Gemini API Anahtarı Gir/Güncelle (Önerilen — Ücretsiz)")
+        print("2. OpenAI API Anahtarı Gir/Güncelle")
+        print("3. API Anahtarlarını Sil")
+        print("4. Haber Önbelleğini Temizle (sentiment_cache.json)")
+        print("5. Tek Hisse İçin Test Analizi Yap")
+        print("6. Geri (Ana Menü)")
+        print("-" * 70)
+
+        sub = input(_colored("Seçiminiz (1-6): ", 'magenta')).strip()
+
+        if sub == '1':
+            key = input(_colored("Gemini API Anahtarı (https://aistudio.google.com/): ", 'magenta')).strip()
+            if key:
+                cfg = load_ai_config()
+                cfg['gemini_api_key'] = key
+                save_ai_config(cfg)
+                print(_colored("  ✅ Gemini API anahtarı kaydedildi.", 'green'))
+            else:
+                print(_colored("  Boş bırakıldı, değişiklik yapılmadı.", 'yellow'))
+
+        elif sub == '2':
+            key = input(_colored("OpenAI API Anahtarı: ", 'magenta')).strip()
+            if key:
+                cfg = load_ai_config()
+                cfg['openai_api_key'] = key
+                save_ai_config(cfg)
+                print(_colored("  ✅ OpenAI API anahtarı kaydedildi.", 'green'))
+            else:
+                print(_colored("  Boş bırakıldı, değişiklik yapılmadı.", 'yellow'))
+
+        elif sub == '3':
+            onay = input("API anahtarları silinsin mi? (E/H): ").strip().upper()
+            if onay == 'E':
+                save_ai_config({})
+                print(_colored("  ✅ API anahtarları silindi.", 'green'))
+
+        elif sub == '4':
+            if clear_sentiment_cache():
+                print(_colored("  ✅ Haber önbelleği temizlendi.", 'green'))
+            else:
+                print(_colored("  Önbellekte silinecek veri yok.", 'yellow'))
+
+        elif sub == '5':
+            if not is_ai_configured():
+                print(_colored("  ❌ Önce bir API anahtarı girin (Seçenek 1 veya 2).", 'red'))
+                continue
+            kod = input(_colored("Test edilecek hisse kodu (Örn: BIMAS): ", 'magenta')).strip().upper()
+            if not kod:
+                continue
+
+            # Ad bul
+            stocks_map = {s['kod']: s.get('ad', '') for s in get_stock_list_with_names()}
+            ad = stocks_map.get(kod, '')
+
+            print(f"  '{kod}' için haberler çekiliyor ve AI analizi yapılıyor...")
+            result = get_sentiment_score(kod, ad, use_cache=False)
+
+            print("\n" + "-" * 70)
+            print(_colored(f"  📰 {kod} — Haber Sentiment Sonucu", 'cyan', True))
+            print("-" * 70)
+            haberler = result.get('haberler', [])
+            if haberler:
+                for i, h in enumerate(haberler, 1):
+                    print(f"  {i}. {h}")
+            else:
+                print(_colored("  Haber bulunamadı.", 'yellow'))
+            print("-" * 70)
+            print(f"  Sonuç : {format_sentiment(result)}")
+            print(f"  Kaynak: {result.get('kaynak', 'yok').upper()}")
+            print("-" * 70)
+
+        elif sub == '6':
+            break
+        else:
+            print(_colored("  Geçersiz seçim.", 'red'))
+
+
+def manage_stock_list():
+    """Hisse Senedi Listesini Yönet — listeleme, ekleme, çıkarma, ad güncelleme."""
+    from data_fetcher import BIST_STOCKS  # mevcut oturum için yüklü liste
+
+    while True:
+        stocks = get_stock_list_with_names()
+        print("\n" + "=" * 70)
+        print(_colored("       HİSSE SENEDİ LİSTESİ YÖNETİMİ", 'cyan', True))
+        print("=" * 70)
+        print(_colored(f"Toplam {len(stocks)} hisse listelenmektedir.", 'yellow'))
+        print(_colored("(Bu listeden fiyat verileri çekilip teknik analiz yapılır.)", 'yellow'))
+        print("-" * 70)
+
+        if stocks:
+            # Sütun başlıkları
+            print(f"{'No':<4} {'Kod':<8} {'Şirket Adı'}")
+            print("-" * 70)
+            for i, s in enumerate(stocks, 1):
+                kod_str   = _colored(f"{s['kod']:<8}", 'green', True)
+                ad_str    = s['ad'] if s['ad'] else _colored("(Ad girilmemiş)", 'yellow')
+                print(f"{i:<4} {kod_str} {ad_str}")
+        else:
+            print(_colored("  Liste boş.", 'red'))
+
+        print("\n" + "-" * 70)
+        print("1. Listeye Hisse Ekle")
+        print("2. Listeden Hisse Çıkar")
+        print("3. Hisse Adını Güncelle")
+        print("4. Geri (Ana Menü)")
+        print("-" * 70)
+
+        sub = input(_colored("Seçiminiz (1/2/3/4): ", 'magenta')).strip()
+
+        if sub == '1':
+            print()
+            while True:
+                kod = input(_colored("Eklenecek Hisse Kodu (Örn: THYAO): ", 'magenta')).strip().upper()
+                if not kod:
+                    break
+                ad  = input(_colored(f"[{kod}] Şirket Adı (boş bırakılabilir): ", 'magenta')).strip()
+                sonuc = add_stock(kod, ad)
+                if sonuc == "added":
+                    print(_colored(f"  ✓ [{kod}] listeye eklendi.", 'green'))
+                elif sonuc == "exists":
+                    print(_colored(f"  [UYARI] [{kod}] zaten listede mevcut.", 'yellow'))
+                elif sonuc == "invalid":
+                    print(_colored(f"  [HATA] Geçersiz hisse kodu. 2-6 karakter arası büyük harf olmalı.", 'red'))
+
+                devam = input("Başka hisse eklenecek mi? (E/H): ").strip().upper()
+                if devam != 'E':
+                    break
+            # Oturum listesini yenile (analiz motorunun bir sonraki çalışmasında etkin olur)
+            import data_fetcher as _df
+            from stock_list_manager import get_stock_list as _gsl
+            _df.BIST_STOCKS = _gsl()
+
+        elif sub == '2':
+            if not stocks:
+                print(_colored("  Listede silinecek hisse yok.", 'red'))
+                continue
+            print()
+            while True:
+                kod = input(_colored("Çıkarılacak Hisse Kodu: ", 'magenta')).strip().upper()
+                if not kod:
+                    break
+                sonuc = remove_stock(kod)
+                if sonuc == "removed":
+                    print(_colored(f"  ✓ [{kod}] listeden çıkarıldı.", 'green'))
+                elif sonuc == "not_found":
+                    print(_colored(f"  [UYARI] [{kod}] listede bulunamadı.", 'yellow'))
+
+                devam = input("Başka hisse çıkarılacak mı? (E/H): ").strip().upper()
+                if devam != 'E':
+                    break
+            # Oturum listesini yenile
+            import data_fetcher as _df
+            from stock_list_manager import get_stock_list as _gsl
+            _df.BIST_STOCKS = _gsl()
+
+        elif sub == '3':
+            if not stocks:
+                print(_colored("  Listede güncellenecek hisse yok.", 'red'))
+                continue
+            print()
+            kod = input(_colored("Adı güncellenecek Hisse Kodu: ", 'magenta')).strip().upper()
+            yeni_ad = input(_colored(f"[{kod}] Yeni Şirket Adı: ", 'magenta')).strip()
+            sonuc = update_stock_name(kod, yeni_ad)
+            if sonuc == "updated":
+                print(_colored(f"  ✓ [{kod}] adı güncellendi.", 'green'))
+            elif sonuc == "not_found":
+                print(_colored(f"  [UYARI] [{kod}] listede bulunamadı.", 'yellow'))
+
+        elif sub == '4':
+            break
+        else:
+            print(_colored("  Geçersiz seçim.", 'red'))
 
 
 def _colored(text: str, color: str = None, bright: bool = False) -> str:
@@ -107,17 +313,22 @@ def main():
         print(_colored(f"Aktif Portföy: ", 'yellow', True) + _colored(f"[{active_profile.upper()}]", 'green', True))
         print(_colored(f"Mevcut Bütçeniz: ", 'yellow') + _colored(f"{budget:.2f} TL", 'green'))
         print(_colored(f"Portföyünüzdeki Hisse Sayısı: ", 'yellow') + _colored(f"{len(portfolio)}", 'green'))
+        ai_ok = is_ai_configured()
+        ai_badge = _colored(f" [AI:{get_active_provider().upper()}]", 'cyan') if ai_ok else _colored(" [AI:Kapalı]", 'yellow')
         print("\nMenü:")
         print("1. Bütçeyi Görüntüle / Güncelle")
-        print("2. Piyasayı Analiz Et ve Alım Tavsiyesi Ver")
+        print("2. Piyasayı Analiz Et ve Alım Tavsiyesi Ver" + ai_badge)
         print("3. Portföyümü Görüntüle ve Sat/Tut Tavsiyeleri Al")
         print("4. Portföye Manuel Hisse Ekle")
         print("5. Mevcut Portföyü Sıfırla veya Sil")
         print("6. Diğer Portföye Geç")
-        print("7. Backtest Modu (Son 2 Yıl Test)")
-        print("8. Çıkış")
-        
-        choice = input("\nSeçiminiz (1/2/3/4/5/6/7/8): ")
+        print("7. Hisse Senedi Listesini Yönet")
+        print("8. 🤖 Yapay Zeka / Haber Analizi Ayarları")
+        print("9. Backtest Modu (Son 2 Yıl Test)")
+        print("10. 📊 AI Performans Raporu (AI vs Teknik Karşılaştırması)")
+        print("11. Çıkış")
+
+        choice = input("\nSeçiminiz (1-11): ")
         
         if choice == '1':
             try:
@@ -150,18 +361,45 @@ def main():
             
             print("Veriler analiz ediliyor (hisseler)...")
             recommendations = analyze_stocks(data_dict)
-            
+
             if not recommendations:
                 print("Şu anki piyasa koşullarında stratejiye uyan hisse bulunamadı.")
                 continue
-                
+
+            # ── AI Haber Sentiment Analizi (opsiyonel) ──────────────── #
+            top_recs = recommendations[:10]
+            if is_ai_configured():
+                print(_colored(f"\n🤖 AI ({get_active_provider().upper()}) ile haber duygu analizi yapılıyor...", 'cyan'))
+                stocks_map = {s['kod']: s.get('ad', '') for s in get_stock_list_with_names()}
+                tickers_info = [
+                    {'kod': r['Hisse'], 'ad': stocks_map.get(r['Hisse'], '')}
+                    for r in top_recs
+                ]
+                sentiment_results = analyze_sentiment_batch(tickers_info, verbose=True)
+                top_recs = enrich_with_sentiment(top_recs, sentiment_results)
+                print(_colored("✓ Haber analizi tamamlandı.", 'green'))
+
+                # ── Sinyalleri kaydet (ilerleyen günlerde ölçülecek) ── #
+                kaydedilen = record_signals(top_recs, sentiment_results)
+                if kaydedilen > 0:
+                    print(_colored(f"  📝 {kaydedilen} yeni sinyal kaydedildi (Menü 10'dan takip edebilirsiniz).", 'cyan'))
+            else:
+                sentiment_results = {}
+
             print("\n" + "="*70)
-            print("*** HİSSELER - TEKNİK ANALİZ SONUÇLARI ***")
+            print(_colored("*** HİSSELER - TEKNİK + HABER ANALİZ SONUÇLARI ***", 'cyan', True))
             print("="*70)
-            for r in recommendations[:10]:
-                display = r.get('Display', r['Hisse'])
-                print(f"- {display:<12} | Fiyat={r['Fiyat']:.2f} TL | Skor={r['Skor']}/{10} | Sinyal: {r['Sinyal']}")
-                print(f"  └─ Nedenler: {r['Nedenler']}")
+            for r in top_recs:
+                display    = r.get('Display', r['Hisse'])
+                efektif    = r.get('EfektiveSkor', r['Skor'])
+                skor_str   = f"{r['Skor']}/10"
+                if efektif != r['Skor']:
+                    delta = efektif - r['Skor']
+                    delta_str = _colored(f" (AI{'+' if delta>0 else ''}{delta}→{efektif})", 'cyan')
+                else:
+                    delta_str = ''
+                print(f"- {display:<12} | Fiyat={r['Fiyat']:.2f} TL | Skor={skor_str}{delta_str} | Sinyal: {r['Sinyal']}")
+                print(f"  └─ {r['Nedenler']}")
                 
             print("\nBütçenize göre portföy oluşturuluyor...")
             allocations, remaining = allocate_budget(budget, recommendations)
@@ -220,58 +458,100 @@ def main():
             if not portfolio:
                 print("\nPortföyünüzde henüz hisse bulunmuyor.")
                 continue
-                
+
             print("\nPortföy verileriniz için güncel piyasa fiyatları çekiliyor...")
             from data_fetcher import BIST_STOCKS
-            
+
             fetch_list = list(set(BIST_STOCKS + [f"{t}.IS" for t in portfolio.keys()]))
             data_dict = fetch_data(fetch_list)
-            
+
             stocks_count = len([t for t in data_dict.keys() if t.endswith('.IS')])
             print(f"> {stocks_count}/{len(fetch_list)} hissenin verisi çekildi.")
-            
-            print("Portföyünüz değerlendiriliyor...")
+
+            print("Portföyünüz teknik olarak değerlendiriliyor...")
             evaluations = evaluate_portfolio(portfolio, data_dict)
-            
+
+            # ── AI Haber Sentiment (portföy hisseleri için) ────────────── #
+            portfolio_sentiment = {}
+            if is_ai_configured():
+                print(_colored(f"\n🤖 AI ({get_active_provider().upper()}) ile portföy haber analizi yapılıyor...", 'cyan'))
+                stocks_map = {s['kod']: s.get('ad', '') for s in get_stock_list_with_names()}
+                port_tickers = [{'kod': h, 'ad': stocks_map.get(h, '')} for h in portfolio.keys()]
+                portfolio_sentiment = analyze_sentiment_batch(port_tickers, verbose=True)
+                print(_colored("✓ Haber analizi tamamlandı.", 'green'))
+
             print("\n" + "=" * 80)
-            print(f"                 [{active_profile.upper()}] PORTFÖY DURUMU VE TAVSİYELER")
+            print(_colored(f"          [{active_profile.upper()}] PORTFÖY DURUMU — TEKNİK + HABER ANALİZİ", 'cyan', True))
             print("=" * 80)
-            
+
             satilacaklar = []
             toplam_portfoy_degeri = 0
             toplam_maliyet = 0
-            
+
             for ev in evaluations:
-                hisse = ev['Hisse']
-                lot = ev['Lot']
-                fiyat = ev['Fiyat']
+                hisse   = ev['Hisse']
+                lot     = ev['Lot']
+                fiyat   = ev['Fiyat']
                 maliyet = ev['Maliyet']
-                k_z = ev['K/Z %']
-                durum = ev['Durum']
-                neden = ev['Nedenler']
-                
-                guncel_tutar = lot * fiyat
+                k_z     = ev['K/Z %']
+                durum   = ev['Durum']
+                neden   = ev['Nedenler']
+
+                guncel_tutar  = lot * fiyat
                 hisse_maliyeti = lot * maliyet
-                
                 toplam_portfoy_degeri += guncel_tutar
-                toplam_maliyet += hisse_maliyeti
-                
-                print(f"📊 Hisse: {hisse:<5} | Lot: {lot:<4} | Maliyet: {maliyet:>6.2f} | Güncel: {fiyat:>6.2f} | K/Z: %{k_z:>5.2f}")
-                print(f"   -> TAVSİYE: {durum} (Neden: {neden})")
+                toplam_maliyet        += hisse_maliyeti
+
+                # K/Z rengi
+                kz_color = 'green' if k_z >= 0 else 'red'
+                kz_str   = _colored(f"%{k_z:>+6.2f}", kz_color)
+
+                print(f"📊 {_colored(hisse, 'yellow', True):<5} | "
+                      f"Lot: {lot:<4} | "
+                      f"Maliyet: {maliyet:>7.2f} TL | "
+                      f"Güncel: {fiyat:>7.2f} TL | "
+                      f"K/Z: {kz_str}")
+
+                # Teknik tavsiye satırı
+                durum_color = {'Sat': 'red', 'Dikkatli Tut': 'yellow', 'Güçlü Tut': 'green'}.get(durum, 'white')
+                print(f"   📈 Teknik : {_colored(durum, durum_color, True)} — {neden}")
+
+                # AI Sentiment satırı (varsa)
+                sent = portfolio_sentiment.get(hisse)
+                nihai_durum = durum   # AI ile revize edilebilir
+
+                if sent and sent.get('kaynak') != 'yok':
+                    sent_line = format_sentiment(sent)
+                    print(f"   {sent_line}")
+
+                    # AI uyarı mantığı: teknik TUT ama haber ÇOK OLUMSUZ → Sat Uyarısı
+                    if sent.get('etiket') == 'COK_OLUMSUZ' and durum == 'Güçlü Tut':
+                        print(_colored("   ⚠️  AI SAT UYARISI: Çok olumsuz haber akışı teknik sinyale rağmen risk oluşturuyor!", 'red', True))
+                        nihai_durum = 'Dikkatli Tut'
+                    elif sent.get('etiket') == 'OLUMSUZ' and durum == 'Güçlü Tut':
+                        print(_colored("   ⚡ AI DİKKAT: Olumsuz haberler mevcut, takipte kalın.", 'yellow'))
+                        nihai_durum = 'Dikkatli Tut'
+                    elif sent.get('etiket') in ('COK_OLUMLU', 'OLUMLU') and durum == 'Sat':
+                        print(_colored("   💡 AI NOT: Olumlu haber akışı var; satış kararını gözden geçirin.", 'cyan'))
+
                 print("-" * 80)
-                
-                if durum in ['Sat', 'Dikkatli Tut']:
+
+                if nihai_durum in ['Sat', 'Dikkatli Tut']:
                     satilacaklar.append(ev)
-            
-            genel_kz_tl = toplam_portfoy_degeri - toplam_maliyet
+
+            genel_kz_tl    = toplam_portfoy_degeri - toplam_maliyet
             genel_kz_yuzde = (genel_kz_tl / toplam_maliyet) * 100 if toplam_maliyet > 0 else 0
-            
-            print("\n" + "="*80)
-            print(f"Portföyün Toplam Maliyeti: {toplam_maliyet:.2f} TL")
-            print(f"Portföyün Güncel Toplam Değeri: {toplam_portfoy_degeri:.2f} TL")
-            print(f"Genel Portföy K/Z Durumu: {genel_kz_tl:+.2f} TL (%{genel_kz_yuzde:+.2f})")
+            kz_renk        = 'green' if genel_kz_tl >= 0 else 'red'
+
+            print("\n" + "=" * 80)
+            print(f"Portföyün Toplam Maliyeti    : {toplam_maliyet:>12.2f} TL")
+            print(f"Portföyün Güncel Toplam Değeri: {toplam_portfoy_degeri:>12.2f} TL")
+            print(_colored(
+                f"Genel Portföy K/Z Durumu     : {genel_kz_tl:>+12.2f} TL ({genel_kz_yuzde:>+.2f}%)",
+                kz_renk, True
+            ))
             print("=" * 80)
-            
+
             log_transaction("Portföy Değerlemesi", "-", "-", "-", toplam_portfoy_degeri, budget, genel_kz_tl, genel_kz_yuzde)
             
             sat_cevap = input("\nPortföyünüzdeki herhangi bir hisseyi satmak ister misiniz? (E/H): ").strip().upper()
@@ -391,6 +671,12 @@ def main():
             active_profile = init_profile()
 
         elif choice == '7':
+            manage_stock_list()
+
+        elif choice == '8':
+            manage_ai_settings()
+
+        elif choice == '9':
             # BACKTEST MODU
             try:
                 from backtest import run_backtest_interactive
@@ -398,7 +684,20 @@ def main():
             except Exception as e:
                 print(f"Backtest modu çalıştırılamadı: {e}")
 
-        elif choice == '8':
+        elif choice == '10':
+            # AI PERFORMANS RAPORU
+            print("\n" + "=" * 80)
+            print(_colored("  📊 AI PERFORMANS RAPORU — Sinyal Takip ve Karşılaştırma", 'cyan', True))
+            print("=" * 80)
+            if not is_ai_configured():
+                print(_colored("  ⚠️  AI yapılandırılmamış. Önce Menü 8'den API anahtarı girin.", 'yellow'))
+            else:
+                try:
+                    print_performance_report()
+                except Exception as e:
+                    print(f"  Rapor oluşturulamadı: {e}")
+
+        elif choice == '11':
             print("Programdan çıkılıyor. Bol kazançlar!")
             sys.exit(0)
         else:
