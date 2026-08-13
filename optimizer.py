@@ -8,7 +8,7 @@ def _safe_float(value, default=0.0):
 def _asset_unit(asset_type, fallback_unit=None):
     if fallback_unit:
         return fallback_unit
-    return 'gram' if asset_type == 'METAL' else 'adet'
+    return 'lot'
 
 
 def _build_portfolio_item(pick, quantity, cost):
@@ -38,13 +38,12 @@ def _rank_candidate(pick):
 
 def allocate_budget(budget, recommendations, max_stocks=3):
     """
-    Bütçeyi en iyi tavsiyelere göre dağıtır.
-    Hem hisseleri hem de değerli metalleri (altın/gümüş) destekler.
+    Bütçeyi en iyi hisse tavsiyelerine göre dağıtır.
 
     Args:
         budget: Kullanılabilir bütçe (TL)
         recommendations: Analiz sonuçları listesi
-        max_stocks: Maksimum kaç asset'e yatırım yapılacak
+        max_stocks: Maksimum kaç hisseye yatırım yapılacak
 
     Returns:
         tuple: (portfolio, remaining_budget)
@@ -119,3 +118,4 @@ def allocate_budget(budget, recommendations, max_stocks=3):
         portfolio.append(_build_portfolio_item(pick, quantity, cost))
 
     return portfolio, max(remaining_budget, 0)
+

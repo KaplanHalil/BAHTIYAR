@@ -115,37 +115,6 @@ class BacktestEngine:
         except Exception as e:
             print(f"  BIST endeks verisi hatası: {e}")
 
-        # ── Altın / Gümüş + USDTRY ──
-        metal_tickers = ['GC=F', 'SI=F', 'USDTRY=X']
-        try:
-            metal_data = yf.download(
-                tickers=metal_tickers,
-                start=warmup_start,
-                end=self.end_date + timedelta(days=1),
-                group_by="ticker",
-                auto_adjust=False,
-                threads=True,
-                progress=False
-            )
-            # USDTRY kur serisini sakla
-            self.usdtry_series = None
-            for mt in metal_tickers:
-                try:
-                    if mt in metal_data.columns.get_level_values(0):
-                        df = metal_data[mt].dropna(how="all")
-                        if not df.empty:
-                            if mt == 'USDTRY=X':
-                                self.usdtry_series = df['Close'].squeeze()
-                            else:
-                                result[mt] = df
-                except Exception:
-                    pass
-            metal_count = sum(1 for t in ['GC=F','SI=F'] if t in result)
-            print(f"  ✓ {metal_count}/2 değerli metal için veri indirildi.")
-        except Exception as e:
-            print(f"  Değerli metal verisi hatası: {e}")
-            self.usdtry_series = None
-
         print()
         return result
 
@@ -262,68 +231,17 @@ class BacktestEngine:
 
         return daily_dates
 
-    def _get_usdtry_for_date(self, target_date):
-        """Belirli bir tarih için USD/TRY kuru döndür."""
-        if self.usdtry_series is None:
-            return 38.0  # fallback
-        mask = self.usdtry_series.index.date <= target_date.date()
-        filtered = self.usdtry_series[mask]
-        if filtered.empty:
-            return 38.0
-        return float(filtered.iloc[-1])
-
-    def _metal_price_tl_per_gram(self, ticker, data_for_analysis, target_date):
-        """
-        GC=F veya SI=F için son TL/gram fiyatını döndürür.
-        1 troy oz = 31.1035 gram
-        """
-        df = data_for_analysis.get(ticker)
-        if df is None or df.empty:
-            return None
-        usd_per_oz = float(df['Close'].iloc[-1])
-        usdtry = self._get_usdtry_for_date(target_date)
-        return (usd_per_oz / 31.1035) * usdtry
-
-    def _convert_metal_to_tl_series(self, ticker, data_for_analysis, target_date):
-        """
-        GC=F veya SI=F'in tüm Close serisini TL/gram serisine dönüştürür.
-        Tüm barın fiyatını ölçeklendirir — bu sayede RSI/MACD/SMA doğru hesaplanır.
-        1 troy oz = 31.1035 gram
-        """
-        df = data_for_analysis.get(ticker)
-        if df is None or df.empty:
-            return None
-        usdtry = self._get_usdtry_for_date(target_date)
-        factor = usdtry / 31.1035  # USD/oz → TL/gram
-        df_tl = df.copy()
-        for col in ['Close', 'Open', 'High', 'Low']:
-            if col in df_tl.columns:
-                df_tl[col] = df_tl[col] * factor
-        return df_tl
-
     def _get_recommendations_and_buy(self, current_date, data_for_analysis, available_slots):
         """
-        Teknik analiz ile hem hisse hem metal tavsiyesi al, bütçeye göre al.
-        - analyze_all_assets() kullanılır (hisse + altın/gümüş)
-        - Metal fiyatları TL/gram'a çevrilir
-        - Portföyde olmayan varlıklar filtrelenir
+        Teknik analiz ile hisse tavsiyesi al, bütçeye göre al.
+        - analyze_stocks() kullanılır
+        - Portföyde olmayan hisseler filtrelenir
         """
         try:
-            from analyzer import analyze_all_assets
+            from analyzer import analyze_stocks
 
-            # Metal verilerini TL/gram serisine dönüştür
-            # (tüm satırlar ölçeklendiriliyor — göstergeler doğru çalışır)
-            data_for_buy = dict(data_for_analysis)
-            for metal_ticker in ['GC=F', 'SI=F']:
-                if metal_ticker in data_for_buy:
-                    df_tl = self._convert_metal_to_tl_series(
-                        metal_ticker, data_for_analysis, current_date
-                    )
-                    if df_tl is not None:
-                        data_for_buy[metal_ticker] = df_tl
-
-            # Hisse + metal analizi
-            recommendations = analyze_all_assets(data_for_buy)
+            # Hisse analizi
+            recommendations = analyze_stocks(data_for_analysis)
 
             if not recommendations:
                 return
@@ -348,11 +266,11 @@ class BacktestEngine:
                 return
 
             for item in allocations:
-                ticker = item['Hisse']          # suffix'siz hisse veya 'ALTIN'/'GUMUS'
+                ticker = item['Hisse']          # suffix'siz hisse
                 fiyat  = item['Fiyat']
                 lot    = item['Lot']
                 maliyet = item['Toplam Maliyet']
-                asset_type = item.get('AssetType', 'HISSE')  # 'HISSE' veya 'METAL'
+                asset_type = item.get('AssetType', 'HISSE')
 
                 if lot <= 0:
                     continue
@@ -383,19 +301,14 @@ class BacktestEngine:
 
     def _evaluate_and_sell(self, current_date, data_for_analysis):
         """
-        Portföydeki hisse VE metalleri değerlendir; sat tavsiyesi gelenleri sat.
-        Metal satış mantığı: RSI>75 VEYA 20g trend negatife döndüyse sat.
+        Portföydeki hisseleri değerlendir; sat tavsiyesi gelenleri sat.
         """
         try:
             from analyzer import evaluate_portfolio
 
             # ── Hisse satış değerlendirmesi ──
-            stock_portfolio = {
-                k: v for k, v in self.portfolio.items()
-                if v.get('type', 'HISSE') != 'METAL'
-            }
-            if stock_portfolio:
-                evaluations = evaluate_portfolio(stock_portfolio, data_for_analysis)
+            if self.portfolio:
+                evaluations = evaluate_portfolio(self.portfolio, data_for_analysis)
                 for ev in evaluations:
                     ticker = ev['Hisse']
                     fiyat  = ev['Fiyat']
@@ -433,58 +346,6 @@ class BacktestEngine:
                             'budget_remaining': self.current_budget
                         })
 
-            # ── Metal satış değerlendirmesi ──
-            metal_map = {'ALTIN': 'GC=F', 'GUMUS': 'SI=F'}
-            metal_portfolio = {
-                k: v for k, v in self.portfolio.items()
-                if v.get('type') == 'METAL'
-            }
-            for ticker, info in list(metal_portfolio.items()):
-                gcf_key = metal_map.get(ticker)
-                if not gcf_key or gcf_key not in data_for_analysis:
-                    continue
-                try:
-                    from ta.momentum import RSIIndicator
-                    df = data_for_analysis[gcf_key]
-                    close = df['Close'].squeeze()
-                    # TL/gram fiyat
-                    tl_per_gram = self._metal_price_tl_per_gram(
-                        gcf_key, data_for_analysis, current_date
-                    ) or info['maliyet']
-
-                    rsi_val = float(RSIIndicator(close=close, window=14).rsi().iloc[-1])
-                    price_20d_change = 0.0
-                    if len(close) >= 20:
-                        price_20d_change = (float(close.iloc[-1]) - float(close.iloc[-20])) / float(close.iloc[-20]) * 100
-
-                    peak_price = max(info.get('peak_price', info['maliyet']), tl_per_gram)
-                    info['peak_price'] = peak_price
-                    profit_pct = ((tl_per_gram - info['maliyet']) / info['maliyet']) * 100 if info['maliyet'] > 0 else 0
-                    drawdown_from_peak = ((tl_per_gram - peak_price) / peak_price) * 100 if peak_price > 0 else 0
-
-                    # Sat koşulları: trend bozulması, zarar kes veya kârı koruma
-                    should_sell = (rsi_val > 75 and price_20d_change < 2)
-                    should_sell = should_sell or profit_pct <= self.stop_loss_pct
-                    should_sell = should_sell or drawdown_from_peak <= self.trailing_stop_pct
-
-                    if should_sell:
-                        lot = info['lot']
-                        satış_tutarı = lot * tl_per_gram
-                        kar_zarar_tl = (tl_per_gram - info['maliyet']) * lot
-                        self.current_budget += satış_tutarı
-                        del self.portfolio[ticker]
-                        self.cooldown_until[ticker] = current_date + timedelta(days=self.cooldown_days)
-                        self.transactions.append({
-                            'date': current_date, 'type': 'SELL',
-                            'ticker': ticker, 'lots': lot,
-                            'price': tl_per_gram, 'amount': satış_tutarı,
-                            'profit_loss': kar_zarar_tl,
-                            'asset_type': 'METAL',
-                            'budget_remaining': self.current_budget
-                        })
-                except Exception:
-                    pass
-
         except Exception as e:
             import sys
             print(f"  [UYARI] Satış değerlendirme hatası ({current_date.date()}): {e}", file=sys.stderr)
@@ -493,31 +354,17 @@ class BacktestEngine:
         """
         Portföyün o günkü piyasa değerini hesapla.
         - Hisseler: .IS suffix ile data_dict'te aranır
-        - Metaller: TL/gram'a çevrilerek hesaplanır
         """
         total_value = 0.0
-        metal_map = {'ALTIN': 'GC=F', 'GUMUS': 'SI=F'}
 
         for ticker, info in self.portfolio.items():
             try:
-                asset_type = info.get('type', 'HISSE')
-
-                if asset_type == 'METAL':
-                    gcf_key = metal_map.get(ticker)
-                    if gcf_key:
-                        tl_per_gram = self._metal_price_tl_per_gram(
-                            gcf_key, data_for_analysis, current_date
-                        )
-                        price = tl_per_gram if tl_per_gram else info['maliyet']
-                    else:
-                        price = info['maliyet']
+                ticker_key = f"{ticker}.IS" if not ticker.endswith('.IS') else ticker
+                df = data_for_analysis.get(ticker_key) or data_for_analysis.get(ticker)
+                if df is None or df.empty:
+                    price = info['maliyet']
                 else:
-                    ticker_key = f"{ticker}.IS" if not ticker.endswith('.IS') else ticker
-                    df = data_for_analysis.get(ticker_key) or data_for_analysis.get(ticker)
-                    if df is None or df.empty:
-                        price = info['maliyet']
-                    else:
-                        price = float(df['Close'].iloc[-1])
+                    price = float(df['Close'].iloc[-1])
 
                 total_value += price * info['lot']
 
@@ -525,6 +372,7 @@ class BacktestEngine:
                 total_value += info.get('maliyet', 0) * info.get('lot', 0)
 
         return total_value
+
 
     # ------------------------------------------------------------------ #
     #  RAPOR ÜRETME

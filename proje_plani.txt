@@ -83,47 +83,29 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
 - Veri çekme periyodunun SMA200 desteği için 3 aydan 1 yıla çıkarılması.
 - Top 5 yerine en iyi 10 hissenin gösterilmesi.
 
-## 17. ALTIN VE GÜMÜŞ TİCARET DESTEĞI [YENI EKLENEN ÖZELLIKLER]
-- Kuveyt Türk fiyatlarına uygun altın ve gümüş futures verilerinin entegrasyonu (GC=F, SI=F)
-- TCMB API'den canlı altın/gümüş fiyatlarının çekilmesi
-- Altın ve gümüş için teknik analiz göstergelerinin geliştirilmesi:
-  - RSI (Aşırı alım-satım tespiti)
-  - SMA 20/50 (Trend analizi)
-  - MACD (Trend yönü)
-  - Volatilite ölçümü (risk değerlendirmesi)
-  - 5 ve 20 günlük fiyat değişim analizi
-- Hisseler ve değerli metaller için birleştirilmiş tavsiye sistemi (analyze_all_assets)
+## 17. ALTIN VE GÜMÜŞ TİCARET DESTEĞI [KALDIRILDI]
+- Kuveyt Türk / TCMB fiyatlarına uygun altın ve gümüş futures verilerinin entegrasyonu (Önceki Sürümde Eklendi, Sonradan Kaldırıldı)
+- Hisseler ve değerli metaller için birleştirilmiş tavsiye sistemi
 - Portföy optimizasyonunda altın/gümüş'ün gram cinsinden lot hesaplaması
-- Altın/gümüş'ü hisselerle aynı portföyde yönetebilme
-- Satış işlemlerinde altın/gümüş'ün TL cinsinden kar/zarar hesaplaması
-- İşlem geçmişinde metal işlemlerinin (gram cinsinden) kaydedilmesi
 
-## 18. KULLANCI ARAYÜZÜ GÜNCELLEMESI [TAMAMLANDI]
-- Menüde "Piyasayı Analiz Et" seçeneği artık hisseler + altın/gümüş tavsiyesi verir
-- Tavsiye listesinde altın/gümüş için fiyat/gram, volatilite bilgisi gösterilir
-- Portföy optimizasyonu sonuçlarında altın/gümüş gram cinsinden gösterilir
-- Manuel hisse/metal ekleme sırasında asset tipi seçimi (Hisse/Metal)
-- Portföy görüntülemede altın/gümüş ayrı bölümde listelenir
-- Satış işlemleri hem hisse hem metal için desteklenir
+## 18. KULLANICI ARAYÜZÜ GÜNCELLEMESİ [KALDIRILDI]
+- Menüde altın/gümüş tavsiye ve alım-satım seçenekleri (BIST Hisseleri odağı için sistemden çıkarıldı)
 
-## 19. VERİ YAPISININ UYUMLULUĞU [TAMAMLANDI]
-- Portfolio JSON yapısında 'type' alanı (H/M) eklenerek asset tipi ayrımı
-- Log sisteminde 'Asset Alım/Satım' işlemleri kayıt edilir
-- Değerli metallerin caching sistemi ile TCMB API yüküne dikkat
+## 19. VERİ YAPISININ UYUMLULUĞU [GÜNCELLENDİ]
+- Portfolio JSON ve log sisteminde sadeliğe gidilerek BIST100 Hisse odaklı yapıya dönüldü
 
 ## 20. GEREKLI KÜTÜPHANELER GÜNCELLEMESİ [TAMAMLANDI]
-- requests: TCMB API'den veri çekme
-- beautifulsoup4: Opsiyonel web scraping
 - colorama: Zaten mevcut (renklendirme)
+- yfinance, pandas, ta: BIST hisselerinin teknik analizi için aktif kullanımda
 
 ## 21. BACKTEST MODU - SİSTEM PERFORMANSI TESTİ [TAMAMLANDI]
 - Son 2 yıl (veya özel dönem) borsa verilerini indiriyor
 - Başlangıç bütçesi kullanıcı tarafından belirtiliyor
 - Günlük simülasyon:
   - Her gün tavsiye algoritmasını çalıştırır
-  - Tavsiye uyarınca hisse alım yapır
-  - Mevcut portföy değerlendirmesi yapır
-  - Sat tavsiyesine uyarak satış işlemi yapır
+  - Tavsiye uyarınca hisse alım yapar
+  - Mevcut portföy değerlendirmesi yapar
+  - Sat tavsiyesine uyarak satış işlemi yapar
   - Kalan bütçe ile alım yapabilir
 - 2 yıl (veya belirtilen dönem) sonunda:
   - Başlangıç ve son portföy değeri karşılaştırması
@@ -133,3 +115,23 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
   - Final portföy durumu
 - Rapor TXT dosyasına kaydediliyor (backtest_report_[tarih].txt)
 - Backtest sonuçlarıyla sistem başarısı ölçülebiliyor
+
+## 22. DEĞERLİ METAL (ALTIN VE GÜMÜŞ) DESTEĞİNİN KALDIRILMASI [TAMAMLANDI]
+- Sistem odak noktası Borsa İstanbul (BIST) hisselerine çekildi.
+- Altın ve gümüş (GC=F, SI=F) veri çekme, teknik analiz ve optimizasyon modülleri temizlendi.
+- `precious_metals_fetcher.py` modülü projeden kaldırıldı.
+- `data_fetcher.py`, `analyzer.py`, `optimizer.py`, `backtest.py` ve `main.py` dosyalarından metal işlem ve gram bazlı mantık arındırıldı.
+- Kullanıcı arayüzü ve portföy/log yönetimi sadece BIST hisse senetleri ile çalışacak şekilde güncellendi.
+
+## 23. HELAL FİNANS ENTEGRASYONU — ARINDIRMAİZ HİSSE LİSTESİ [TAMAMLANDI]
+- BIST100 sabit listesi kaldırıldı; hisse evreni helalfinans.net arındırmasız listesiyle sınırlandırıldı.
+- `data_fetcher.py`'a `fetch_helal_stocks()` fonksiyonu eklendi:
+  - helalfinans.net/hisseler?arindirmasiz=1 adresini `requests` + `BeautifulSoup` ile scrape eder.
+  - Sayfa HTML yapısında `/hisse/<KOD>` bağlantı kalıbı veya kısa büyük harf metin (3-5 karakter) ile ticker kodlarını tespit eder.
+  - Başarılı çekimde sonuçlar `helal_stocks_cache.json` dosyasına 24 saatlik TTL ile önbelleğe alınır.
+  - Bağlantı hatası veya boş sayfa durumunda bilinen yedek statik liste (`HELAL_STOCKS_FALLBACK`) devreye girer.
+  - `requests`/`beautifulsoup4` kurulu değilse de yedek liste kullanılır ve kurulum komutu ekrana yazılır.
+- `BIST_STOCKS` değişkeni modül yüklenirken `fetch_helal_stocks()` çağrısıyla dinamik olarak doldurulur.
+- Teknik analiz, portföy optimizasyonu ve backtest motoru bu değişiklikten etkilenmez; hepsi `BIST_STOCKS` üzerinden çalışmaya devam eder.
+
+

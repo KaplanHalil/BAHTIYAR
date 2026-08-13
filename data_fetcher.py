@@ -3,45 +3,162 @@ import pandas as pd
 import sys
 import os
 import logging
+import json
+import re
 
-# Precious metals fetcher - optional import
 try:
-    from precious_metals_fetcher import fetch_precious_metals
-    METALS_AVAILABLE = True
+    import requests
+    from bs4 import BeautifulSoup
+    SCRAPER_AVAILABLE = True
 except ImportError:
-    METALS_AVAILABLE = False
-
-# BIST 100 Hisseleri (Güncel Yaklaşım)
-BIST_STOCKS = [
-    "AEFES.IS", "AGHOL.IS", "AHGAZ.IS", "AKBNK.IS", "AKCNS.IS", "AKFGY.IS", "AKSA.IS", "AKSEN.IS", "ALARK.IS", "ALBRK.IS", 
-    "ALFAS.IS", "ARCLK.IS", "ASELS.IS", "ASTOR.IS", "BERA.IS", "BIMAS.IS", "BIOEN.IS", "BOBET.IS", "BRSAN.IS", "BTCIM.IS", 
-    "BUCIM.IS", "CANTE.IS", "CCOLA.IS", "CIMSA.IS", "CWENE.IS", "DOAS.IS", "DOHOL.IS", "ECILC.IS", "EGEEN.IS", "EKGYO.IS", 
-    "ENJSA.IS", "ENKAI.IS", "EREGL.IS", "EUPWR.IS", "EUREN.IS", "FROTO.IS", "GARAN.IS", "GESAN.IS", "GLYHO.IS", "GUBRF.IS", 
-    "GWIND.IS", "HALKB.IS", "HEKTS.IS", "IMASM.IS", "IPEKE.IS", "ISCTR.IS", "ISDMR.IS", "ISGYO.IS", "ISMEN.IS", "IZENM.IS", 
-    "KALES.IS", "KARSN.IS", "KAYSE.IS", "KCAER.IS", "KCHOL.IS", "KLSER.IS", "KONTR.IS", "KONYA.IS", "KORDS.IS", "KOZAA.IS", 
-    "KOZAL.IS", "KRDMD.IS", "MAVI.IS", "MGROS.IS", "MIATK.IS", "ODAS.IS", "OTKAR.IS", "OYAKC.IS", "PENTA.IS", "PETKM.IS", 
-    "PGSUS.IS", "PNLSN.IS", "QUAGR.IS", "SAHOL.IS", "SASA.IS", "SDTTR.IS", "SISE.IS", "SKBNK.IS", "SMRTG.IS", "SOKM.IS", 
-    "TABGD.IS", "TAVHL.IS", "TCELL.IS", "THYAO.IS", "TKFEN.IS", "TOASO.IS", "TSKB.IS", "TTKOM.IS", "TTRAK.IS", "TUKAS.IS", 
-    "TUPRS.IS", "ULKER.IS", "VAKBN.IS", "VESBE.IS", "VESTL.IS", "YEOTK.IS", "YKBNK.IS", "YYLGD.IS", "ZOREN.IS", "KZBGY.IS"
-]
+    SCRAPER_AVAILABLE = False
 
 # Genel piyasa rejimi için BIST 100 endeksi
 MARKET_INDEX = 'XU100.IS'
 
-# Değerli Metaller
-PRECIOUS_METALS = ['GC=F', 'SI=F']  # Altın ve Gümüş Futures
+# Yedek statik liste — helalfinans.net'e erişilemediğinde kullanılır
+# Kaynak: helalfinans.net/hisseler?arindirmasiz=1 (27 hisse)
+HELAL_STOCKS_FALLBACK = [
+    "ALBRK.IS",  # Albaraka Türk Katılım Bankası A.Ş.
+    "BAHKM.IS",  # Bahadır Kimya Sanayi ve Ticaret A.Ş.
+    "BEGYO.IS",  # Batı Ege Gayrimenkul Yatırım Ortaklığı A.Ş.
+    "BIMAS.IS",  # BİM Birleşik Mağazalar A.Ş.
+    "BINBN.IS",  # Bin Ulaşım ve Akıllı Şehir Teknolojileri A.Ş.
+    "BORSK.IS",  # Bor Şeker A.Ş.
+    "BOSSA.IS",  # Bossa Ticaret ve Sanayi İşletmeleri A.Ş.
+    "CELHA.IS",  # Çelik Halat ve Tel Sanayii A.Ş.
+    "COSMO.IS",  # Cosmos Yatırım Holding A.Ş.
+    "DARDL.IS",  # Dardanel Önentaş Gıda Sanayi A.Ş.
+    "DOFRB.IS",  # Dof Robotik Sanayi A.Ş.
+    "EBEBK.IS",  # Ebebek Mağazacılık A.Ş.
+    "EKSUN.IS",  # Eksun Gıda Tarım Sanayi ve Ticaret A.Ş.
+    "ESCOM.IS",  # Escort Teknoloji Yatırım A.Ş.
+    "FZLGY.IS",  # Fuzul Gayrimenkul Yatırım Ortaklığı A.Ş.
+    "GUNDG.IS",  # Gündoğdu Gıda Süt Ürünleri Sanayi A.Ş.
+    "IZFAS.IS",  # İzmir Fırça Sanayi ve Ticaret A.Ş.
+    "IZINV.IS",  # İz Yatırım Holding A.Ş.
+    "KRGYO.IS",  # Körfez Gayrimenkul Yatırım Ortaklığı A.Ş.
+    "KTLEV.IS",  # Katılımevim Tasarruf Finansman A.Ş.
+    "KZBGY.IS",  # Kızılbük Gayrimenkul Yatırım Ortaklığı A.Ş.
+    "LXGYO.IS",  # Luxera Gayrimenkul Yatırım Ortaklığı A.Ş.
+    "MCARD.IS",  # Metropal Kurumsal Hizmetler A.Ş.
+    "MPARK.IS",  # MLP Sağlık Hizmetleri A.Ş.
+    "PENGD.IS",  # Penguen Gıda Sanayi A.Ş.
+    "RODRG.IS",  # Rodrigo Tekstil Sanayi ve Ticaret A.Ş.
+    "YUNSA.IS",  # Yünsa Yünlü Sanayi ve Ticaret A.Ş.
+]
+
+# Önbellek dosyası
+_CACHE_FILE = "helal_stocks_cache.json"
+_CACHE_TTL_HOURS = 24  # 24 saatte bir yenile
 
 logging.disable(logging.CRITICAL)
 
-def fetch_data(stock_list=None, include_metals=True, period="1y"):
+
+def _load_cache():
+    """Önbellekteki helal hisse listesini yükle. Geçerliyse döndür."""
+    if not os.path.exists(_CACHE_FILE):
+        return None
+    try:
+        with open(_CACHE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        import time
+        age_hours = (time.time() - data.get("timestamp", 0)) / 3600
+        if age_hours < _CACHE_TTL_HOURS and data.get("stocks"):
+            return data["stocks"]
+    except Exception:
+        pass
+    return None
+
+
+def _save_cache(stocks):
+    """Helal hisse listesini önbelleğe yaz."""
+    import time
+    try:
+        with open(_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"timestamp": time.time(), "stocks": stocks}, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def fetch_helal_stocks():
     """
-    BIST hisseleri ve değerli metaller (altın/gümüş) verilerini çeker.
-    
+    helalfinans.net/hisseler?arindirmasiz=1 adresinden arındırmasız hisseleri çeker.
+    Başarısız olursa önbellek veya yedek statik liste döner.
+
+    Returns:
+        list: ['THYAO.IS', 'BIMAS.IS', ...] formatında hisse listesi
+    """
+    # Önce önbelleğe bak
+    cached = _load_cache()
+    if cached:
+        return cached
+
+    if not SCRAPER_AVAILABLE:
+        print("  [UYARI] 'requests' veya 'beautifulsoup4' kurulu değil. Yedek liste kullanılıyor.")
+        print("  Kurulum: pip install requests beautifulsoup4")
+        return HELAL_STOCKS_FALLBACK
+
+    url = "https://helalfinans.net/hisseler?arindirmasiz=1"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        ),
+        "Accept-Language": "tr-TR,tr;q=0.9",
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        stocks = []
+        # Sayfadaki hisse kodlarını bul — genellikle tablo hücresi veya link içinde
+        # Önce <a> etiketlerinde /hisse/ içerenleri dene
+        for tag in soup.find_all("a", href=True):
+            href = tag["href"]
+            if "/hisse/" in href:
+                code = href.rstrip("/").split("/")[-1].upper()
+                if re.fullmatch(r"[A-Z]{3,5}", code):
+                    ticker = f"{code}.IS"
+                    if ticker not in stocks:
+                        stocks.append(ticker)
+
+        # Eğer link bazlı bulunamazsa metin bazlı tara
+        if not stocks:
+            for cell in soup.find_all(["td", "th", "span", "div"]):
+                text = cell.get_text(strip=True).upper()
+                if re.fullmatch(r"[A-Z]{3,5}", text):
+                    ticker = f"{text}.IS"
+                    if ticker not in stocks:
+                        stocks.append(ticker)
+
+        if stocks:
+            print(f"  ✓ helalfinans.net'ten {len(stocks)} arındırmasız hisse çekildi.")
+            _save_cache(stocks)
+            return stocks
+        else:
+            print("  [UYARI] helalfinans.net sayfasında hisse kodu bulunamadı. Yedek liste kullanılıyor.")
+            return HELAL_STOCKS_FALLBACK
+
+    except Exception as e:
+        print(f"  [UYARI] helalfinans.net'e erişilemedi ({e}). Yedek liste kullanılıyor.")
+        return HELAL_STOCKS_FALLBACK
+
+
+# Modül yüklendiğinde hisse listesini belirle (önbellek / canlı / yedek)
+BIST_STOCKS = fetch_helal_stocks()
+
+
+def fetch_data(stock_list=None, period="1y"):
+    """
+    Arındırmasız helal hisseleri ve BIST endeks verilerini çeker.
+
     Args:
-        stock_list: Çekilecek hisse listesi (None ise BIST_STOCKS kullanılır)
-        include_metals: Altın/gümüş verileri de çekil (True/False)
-        period: Veri dönemi ("1y", "1mo", etc)
-    
+        stock_list: Çekilecek hisse listesi (None ise BIST_STOCKS/helal listesi kullanılır)
+        period: Veri dönemi (\"1y\", \"1mo\", etc)
+
     Returns:
         dict: {ticker: dataframe} formatında veri
     """
@@ -53,7 +170,6 @@ def fetch_data(stock_list=None, include_metals=True, period="1y"):
     # ========== HISSE VERİLERİ ==========
     if stock_list:
         try:
-            # Tüm hisseleri tek request ile çek
             data = yf.download(
                 tickers=stock_list,
                 period=period,
@@ -63,15 +179,12 @@ def fetch_data(stock_list=None, include_metals=True, period="1y"):
                 progress=False
             )
 
-            # Her hisseyi ayrı dataframe olarak ayır
             for ticker in stock_list:
                 try:
                     if ticker in data.columns.levels[0]:
                         df = data[ticker].dropna(how="all")
-
                         if not df.empty:
                             result[ticker] = df
-
                 except Exception:
                     pass
 
@@ -91,38 +204,6 @@ def fetch_data(stock_list=None, include_metals=True, period="1y"):
     except Exception as e:
         print(f"BIST endeks veri çekme hatası: {e}")
 
-    # ========== DEĞERLI METAL VERİLERİ ==========
-    if include_metals:
-        try:
-            # Altın (GC=F) ve Gümüş (SI=F) futures verilerini çek
-            metals_data = yf.download(
-                tickers=PRECIOUS_METALS,
-                period=period,
-                group_by="ticker",
-                auto_adjust=False,
-                threads=True,
-                progress=False
-            )
-
-            # Altın
-            try:
-                if 'GC=F' in metals_data.columns.levels[0]:
-                    df_gold = metals_data['GC=F'].dropna(how="all")
-                    if not df_gold.empty:
-                        result['GC=F'] = df_gold
-            except Exception:
-                pass
-
-            # Gümüş
-            try:
-                if 'SI=F' in metals_data.columns.levels[0]:
-                    df_silver = metals_data['SI=F'].dropna(how="all")
-                    if not df_silver.empty:
-                        result['SI=F'] = df_silver
-            except Exception:
-                pass
-
-        except Exception as e:
-            print(f"Değerli metal veri çekme hatası: {e}")
-
     return result
+
+

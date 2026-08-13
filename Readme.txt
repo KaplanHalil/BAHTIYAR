@@ -18,20 +18,14 @@ yatırım tavsiyesi veren bir Python-tabanlı portföy yönetim sistemidir.
   - Ağırlıklı puanlama sistemi (Max 10 puan)
   - Al/Tut/Sat Tavsiyesi
 
-✓ ALTIN VE GÜMÜŞ TİCARETİ (KUVEYT TÜRK FİYATLARI)
-  - Altın (GC=F) ve Gümüş (SI=F) futures analizi
-  - TCMB API ile güncel fiyatlar
-  - Hisselerle aynı portföyde yönetim
-  - Gram cinsinden satın alma ve satış
-
 ✓ PORTFÖY YÖNETİMİ
   - Çoklu portföy desteği (birden fazla hesap)
-  - Hisse ve metal karışık portföy
+  - BIST Hisse portföy yönetimi
   - İşlem geçmişi tutma (Kar/Zarar hesaplama)
   - Portföy değerlemesi
 
-✓ TAVSIYE SİSTEMİ
-  - Hisseler ve değerli metaller için birleştirilmiş analiz
+✓ TAVSİYE SİSTEMİ
+  - BIST Hisseleri için teknik analiz
   - Bütçeye uygun optimal portföy önerisi
   - Sinyal gücü derecelendirmesi (Güçlü/Orta/Zayıf)
 
@@ -59,19 +53,17 @@ yatırım tavsiyesi veren bir Python-tabanlı portföy yönetim sistemidir.
    → Başlangıç bütçenizi girin veya güncelleyin
 
 2. Piyasayı Analiz Et ve Alım Tavsiyesi Ver ⭐
-   → Hisseler + Altın/Gümüş analiz ve tavsiye
+   → BIST Hisse analiz ve tavsiye
    → Bütçeye uygun portföy önerisi
    → Manuel alım seçeneği
 
 3. Portföyümü Görüntüle ve Sat/Tut Tavsiyeleri Al
    → Mevcut portföyü göster
    → Hisse satış tavsiyesi
-   → Metal satış seçeneği
    → Kar/Zarar hesaplama
 
-4. Portföye Manuel Hisse/Metal Ekle
-   → Kendini alındığını bildirdiğin hisseler ekle
-   → Altın/Gümüş gramı ekle
+4. Portföye Manuel Hisse Ekle
+   → Kendini alındığını bildirdiğin hisseleri ekle
 
 5. Mevcut Portföyü Sıfırla veya Sil
    → Portföyü temizle veya tamamen sil
@@ -88,18 +80,6 @@ yatırım tavsiyesi veren bir Python-tabanlı portföy yönetim sistemidir.
 8. Çıkış
    → Programdan çık
 
-
-💰 ALTUN VE GÜMÜŞ KULLANIMI
-═════════════════════════════════════════════════════════════════════════════════
-
-- Altın kodu: ALTIN
-- Gümüş kodu: GUMUS
-- Birim: Gram
-- Fiyat kaynağı: TCMB API ve Yahoo Finance
-
-Portföy optimizasyonunda:
-  - Hisse: "x lot @ y TL/lot"
-  - Metal: "x gram @ y TL/gram"
 
 🔬 BACKTEST MODU - SİSTEM PERFORMANSI TESTİ
 ═════════════════════════════════════════════════════════════════════════════════
@@ -174,19 +154,17 @@ Bollinger Bands:
 
 Volatilite:
   → Yüksek volatilite: Risk uyarısı
-  → Değerli metaller için önemli risk göstergesi
 
 
 📁 DOSYA YAPISI
 ═════════════════════════════════════════════════════════════════════════════════
 
 main.py - Ana program, menü sistemi
-data_fetcher.py - Veri çekme (yfinance, TCMB)
+data_fetcher.py - Veri çekme (yfinance)
 analyzer.py - Teknik analiz motoru
 optimizer.py - Portföy optimizasyonu
 budget_manager.py - Bütçe ve portföy yönetimi
 logger.py - İşlem geçmişi tutma
-precious_metals_fetcher.py - Altın/Gümüş fiyatları
 requirements.txt - Gerekli kütüphaneler
 
 [isim]_butce.json - Kullanıcı bütçesi ve portföyü
@@ -207,5 +185,6 @@ requirements.txt - Gerekli kütüphaneler
 ═════════════════════════════════════════════════════════════════════════════════
 
 v2.1 - Backtest Modu Eklendi (Sistem Performans Testi)
-v2.0 - Altın ve Gümüş Desteği Eklendi (KUVEYT TÜRK FİYATLARI)
+v2.0 - Değerli Metal Desteği Kaldırıldı (BIST Hisseleri Odaklı)
 v1.0 - İlk Sürüm (Sadece BIST Hisseleri)
+
