@@ -392,13 +392,18 @@ def main():
             for r in top_recs:
                 display    = r.get('Display', r['Hisse'])
                 efektif    = r.get('EfektiveSkor', r['Skor'])
-                skor_str   = f"{r['Skor']}/10"
+                skor_str   = f"{r['Skor']}/15"
                 if efektif != r['Skor']:
                     delta = efektif - r['Skor']
                     delta_str = _colored(f" (AI{'+' if delta>0 else ''}{delta}→{efektif})", 'cyan')
                 else:
                     delta_str = ''
                 print(f"- {display:<12} | Fiyat={r['Fiyat']:.2f} TL | Skor={skor_str}{delta_str} | Sinyal: {r['Sinyal']}")
+                if 'HedefFiyat' in r and 'StopLoss' in r:
+                    hedef = r['HedefFiyat']
+                    stop = r['StopLoss']
+                    rr = r.get('RiskOdul', 1.5)
+                    print(f"  ├─ 🎯 Hedef: {_colored(f'{hedef:.2f} TL', 'green')} | 🛑 Stop-Loss: {_colored(f'{stop:.2f} TL', 'red')} | R/R: 1:{rr:.1f}")
                 print(f"  └─ {r['Nedenler']}")
                 
             print("\nBütçenize göre portföy oluşturuluyor...")
@@ -514,7 +519,9 @@ def main():
 
                 # Teknik tavsiye satırı
                 durum_color = {'Sat': 'red', 'Dikkatli Tut': 'yellow', 'Güçlü Tut': 'green'}.get(durum, 'white')
-                print(f"   📈 Teknik : {_colored(durum, durum_color, True)} — {neden}")
+                t_stop = ev.get('TrailingStop', 0.0)
+                t_stop_str = f" | 🛡️ İz Süren Stop: {t_stop:.2f} TL" if t_stop > 0 else ""
+                print(f"   📈 Teknik : {_colored(durum, durum_color, True)}{t_stop_str} — {neden}")
 
                 # AI Sentiment satırı (varsa)
                 sent = portfolio_sentiment.get(hisse)

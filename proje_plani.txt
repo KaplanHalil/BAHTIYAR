@@ -191,3 +191,20 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
 - `run_backtest_interactive()` güncellendi: kullanıcıya "Analiz Sıklığı" sorusu sorulur (1=Günlük, 2=Günde 2 kez).
 - Backtest rapor başlığına "Analiz Sıklığı" satırı eklendi.
 - **Hata Düzeltmesi:** pandas DataFrame nesnelerinde `df1 or df2` mantıksal ifadesinin fırlattığı `ValueError: The truth value of a DataFrame is ambiguous` hatası giderildi (`_get_open_price` ve `_calculate_portfolio_value` açık `is None` kontrolüne geçirildi).
+
+## 29. GELİŞMİŞ TEKNİK ANALİZ VE RİSK YÖNETİMİ MOTORU GÜNCELLEMESİ (3 AŞAMA) [TAMAMLANDI]
+- `analyzer.py` modülü 3 aşamalı yeni analiz ve risk yönetimi algoritmalarıyla geliştirildi:
+  - **Aşama 1: Dinamik Risk Yönetimi & ATR Bazlı Seviyeler:**
+    - ATR (14) göstergesi entegre edildi.
+    - Her hisse için dinamik **Stop-Loss** (`Fiyat - 2*ATR`), **Hedef Fiyat / Take-Profit** (`Fiyat + 3*ATR`) ve **Risk/Ödül Oranı (R/R)** hesaplanıp tavsiye çıktısına eklendi.
+    - Portföy değerlendirmesinde maliyete göre **%-8 zararda disiplinli Stop-Loss uyarısı** ve **%+15 kârda İz Süren Stop (Trailing Stop) koruma mekanizması** devreye alındı.
+  - **Aşama 2: Trend Gücü (ADX) & Akıllı Para Akışı (MFI):**
+    - `ADX (14)` entegrasyonu ile trend gücü ölçüldü (`ADX >= 25` +1 puan güçlü trend; `ADX < 18` testere/yatay piyasa riski puan kırılımı).
+    - `MFI (14)` (Money Flow Index) ile para giriş-çıkışları tespit edildi (`MFI < 25` dip toplama +1 puan; `MFI > 80` aşırı alım para çıkış riski).
+  - **Aşama 3: Uyumsuzluk (Divergence) & Göreceli Güç (Relative Strength / Alpha):**
+    - **Pozitif RSI Uyumsuzluğu (Bullish Divergence):** Son 20 günde fiyat dip tazelerken RSI yükseliyorsa +2 puan erken dip dönüş sinyali.
+    - **Negatif RSI Uyumsuzluğu (Bearish Divergence):** Portföydeki hisse yükselirken RSI düşüyorsa sat puanına +2 puan ekleme.
+    - **Göreceli Güç (Alpha):** Hisse 20 günlük getirisinin BIST100 endeks getirisini %4'ten fazla aşması durumunda +1 puan bonusu.
+- Maksimum teknik skor 10 puandan 15 puana çıkarıldı (`MAX_SKOR = 15`, `MIN_BUY_SCORE = 6`).
+- `main.py` arayüzü güncellenerek hedef fiyat, stop-loss seviyesi, risk/ödül oranı ve iz süren stop bilgileri renkli olarak ekrana basıldı.
+
