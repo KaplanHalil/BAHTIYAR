@@ -21,15 +21,22 @@ from signal_tracker import record_signals, print_performance_report
 from shutil import get_terminal_size
 
 try:
-    from colorama import init as _colorama_init, Fore, Style
-    _colorama_init()
-    COLORAMA_AVAILABLE = True
+    from colorama import init as _colorama_init
+    _colorama_init(strip=False, autoreset=True)
 except Exception:
-    COLORAMA_AVAILABLE = False
-    class Fore:  # fallback no-op
-        RED = GREEN = YELLOW = BLUE = MAGENTA = CYAN = RESET = ''
-    class Style:
-        BRIGHT = NORMAL = RESET_ALL = ''
+    pass
+
+COLOR_CODES = {
+    'BLACK': '\033[30m',
+    'RED': '\033[31m',
+    'GREEN': '\033[32m',
+    'YELLOW': '\033[33m',
+    'BLUE': '\033[34m',
+    'MAGENTA': '\033[35m',
+    'CYAN': '\033[36m',
+    'WHITE': '\033[37m',
+    'RESET': '\033[0m'
+}
 
 
 def print_separator():
@@ -232,11 +239,13 @@ def manage_stock_list():
 
 
 def _colored(text: str, color: str = None, bright: bool = False) -> str:
-    if not COLORAMA_AVAILABLE or not color:
+    if not color:
         return text
-    col = getattr(Fore, color.upper(), '')
-    style = Style.BRIGHT if bright else ''
-    return f"{style}{col}{text}{Style.RESET_ALL}"
+    col_code = COLOR_CODES.get(color.upper(), '')
+    style_code = '\033[1m' if bright else ''
+    if not col_code and not style_code:
+        return text
+    return f"{style_code}{col_code}{text}\033[0m"
 
 
 def print_banner():
