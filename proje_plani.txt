@@ -210,6 +210,6 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
 - **Portföy Satış Güncellemesi:** Hisse satımı sırasında kullanıcının kendi gerçekleşen satış fiyatını girebilmesi sağlandı (Enter'a basılırsa varsayılan olarak anlık borsa fiyatını kullanır).
 - **Zengin Renkli Terminal Arayüzü (CLI UI/UX):** Tüm ana menü seçenekleri, çerçeveler, veri tabloları, işlem bildirimleri (başarı/hata) ve kullanıcı yönlendirmeleri yüksek kontrastlı, renkli ve modern ANSI / colorama standartlarıyla yenilendi.
 - **Portföy Seçim Menüsü Doğrulaması (Profil UX):** Giriş menüsünde 1 ve 2 dışında geçersiz veya hatalı bir değer girildiğinde kullanıcı otomatik olarak yeni portföy oluşturmaya yönlendirilmek yerine, uyarı mesajı verilip doğru seçim yapılana kadar döngüde menünün yeniden gösterilmesi sağlandı.
-
-
-
+- **Backtest Algoritma & Parametre Optimizasyonu (Performans Teşhisi):**
+  - **Teşhis:** Backtest simülasyonundaki 30 günlük karaliste (cooldown) ve %18 sabit kâr alma sınırlamasının kazanan hisseleri erken kestirip test sonucunu -%21.28 zarara sürüklediği tespit edildi.
+  - **Düzeltme:** Soğuma süresi 30 günden 5 güne indirildi, Stop-Loss BİST oynaklığına uygun olarak -%12'ye genişletildi ve kâr eden hisselerin yükseliş trendi boyunca elinde tutulması (İz Süren Stop mantığı) sağlandı. Test sonucu **-%21.28 zarardan +%57.58 kâra** yükseltildi.

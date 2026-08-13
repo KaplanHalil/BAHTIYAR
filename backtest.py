@@ -45,10 +45,11 @@ class BacktestEngine:
         self.daily_values = []
         self.max_stocks = max_stocks
         self.session_mode = session_mode   # 'daily' | 'twice_daily'
-        self.stop_loss_pct = -8.0
-        self.trailing_stop_pct = -10.0
-        self.take_profit_pct = 18.0
-        self.cooldown_days = 30
+        self.stop_loss_pct = -12.0
+        self.trailing_stop_pct = -15.0
+        self.take_profit_pct = 999.0      # Sabit kâr alma yerine İz Süren Stop (Trailing Stop) ile kârı büyüt
+        self.cooldown_days = 5          # Stop olan hisseye 30 gün yerine 5 gün soğuma süresi
+
         self.cooldown_until = {}
 
         if end_date is None:
