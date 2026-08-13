@@ -209,6 +209,7 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
 - `main.py` arayüzü güncellenerek hedef fiyat, stop-loss seviyesi, risk/ödül oranı ve iz süren stop bilgileri renkli olarak ekrana basıldı.
 - **Portföy Satış Güncellemesi:** Hisse satımı sırasında kullanıcının kendi gerçekleşen satış fiyatını girebilmesi sağlandı (Enter'a basılırsa varsayılan olarak anlık borsa fiyatını kullanır).
 - **Zengin Renkli Terminal Arayüzü (CLI UI/UX):** Tüm ana menü seçenekleri, çerçeveler, veri tabloları, işlem bildirimleri (başarı/hata) ve kullanıcı yönlendirmeleri yüksek kontrastlı, renkli ve modern ANSI / colorama standartlarıyla yenilendi.
-- **Renk Temizleme (ANSI Color Filter Fix):** `colorama.init()` varsayılan olarak tty kontrolü yapıp renk kodlarını sildiği için `_colored()` fonksiyonu doğrudan ANSI kaçış dizilerine (`\033[1;32m` vb.) ve `strip=False` kipine geçirilerek venv ve tüm terminal emülatörlerinde kesintisiz renk desteği sağlandı.
+- **Portföy Seçim Menüsü Doğrulaması (Profil UX):** Giriş menüsünde 1 ve 2 dışında geçersiz veya hatalı bir değer girildiğinde kullanıcı otomatik olarak yeni portföy oluşturmaya yönlendirilmek yerine, uyarı mesajı verilip doğru seçim yapılana kadar döngüde menünün yeniden gösterilmesi sağlandı.
+
 
 

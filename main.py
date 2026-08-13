@@ -270,44 +270,60 @@ def migrate_old_data():
         os.rename("islem_gecmisi.txt", "default_islem_gecmisi.txt")
 
 def init_profile():
-    print_banner()
-    print(_colored("Hoş geldiniz! Lütfen bir portföy seçin veya yenisini oluşturun.", 'magenta'))
-    print()
-    profiles = get_all_profiles()
-    
-    if profiles:
-        print(_colored("Sistemde Kayıtlı Portföyler:", 'cyan', True))
-        for i, p in enumerate(profiles):
-            print(_colored(f" {i+1}. ", 'yellow', True) + _colored(f"{p}", 'green'))
-        print("-" * 40)
-        print(_colored("1. Var olan bir portföyü seç", 'blue'))
-        print(_colored("2. Yeni bir portföy oluştur", 'blue'))
+    while True:
+        print_banner()
+        print(_colored("Hoş geldiniz! Lütfen bir portföy seçin veya yenisini oluşturun.", 'magenta', True))
+        print()
+        profiles = get_all_profiles()
+        
+        if profiles:
+            print(_colored("Sistemde Kayıtlı Portföyler:", 'cyan', True))
+            for i, p in enumerate(profiles):
+                print(_colored(f" {i+1}. ", 'yellow', True) + _colored(f"{p}", 'green', True))
+            print(_colored("-" * 40, 'cyan'))
+            print(_colored("1. Var olan bir portföyü seç", 'blue', True))
+            print(_colored("2. Yeni bir portföy oluştur", 'blue', True))
 
-        choice = input(_colored("Seçiminiz (1/2): ", 'magenta')).strip()
-        if choice == '1':
-            try:
-                p_idx = int(input(_colored("Girmek istediğiniz portföy numarası: ", 'magenta'))) - 1
-                if 0 <= p_idx < len(profiles):
-                    p_name = profiles[p_idx]
-                else:
-                    print(_colored("Geçersiz numara! Yeni portföy oluşturma ekranına yönlendiriliyorsunuz...", 'red'))
+            choice = input(_colored("Seçiminiz (1/2): ", 'magenta', True)).strip()
+            if choice == '1':
+                while True:
+                    try:
+                        p_idx_input = input(_colored("Girmek istediğiniz portföy numarası (İptal için 0): ", 'magenta')).strip()
+                        if p_idx_input == '0':
+                            break
+                        p_idx = int(p_idx_input) - 1
+                        if 0 <= p_idx < len(profiles):
+                            p_name = profiles[p_idx]
+                            set_profile(p_name)
+                            set_logger_profile(p_name)
+                            print(_colored(f"\n--> [{p_name.upper()}] portföyü aktif edildi <--", 'green', True))
+                            return p_name
+                        else:
+                            print(_colored("❌ Geçersiz numara! Lütfen listedeki bir numarayı girin.", 'red', True))
+                    except ValueError:
+                        print(_colored("❌ Geçersiz giriş! Lütfen geçerli bir sayı girin.", 'red', True))
+            elif choice == '2':
+                while True:
                     p_name = input(_colored("Yeni Portföy (Kullanıcı) Adı: ", 'magenta')).strip()
-            except ValueError:
-                print(_colored("Geçersiz giriş! Yeni portföy oluşturma ekranına yönlendiriliyorsunuz...", 'red'))
-                p_name = input(_colored("Yeni Portföy (Kullanıcı) Adı: ", 'magenta')).strip()
+                    if not p_name:
+                        print(_colored("❌ Portföy adı boş bırakılamaz!", 'red', True))
+                    else:
+                        set_profile(p_name)
+                        set_logger_profile(p_name)
+                        print(_colored(f"\n--> [{p_name.upper()}] portföyü oluşturuldu ve aktif edildi <--", 'green', True))
+                        return p_name
+            else:
+                print(_colored("❌ Geçersiz seçim! Lütfen yalnızca 1 veya 2 girin.\n", 'red', True))
         else:
-            p_name = input(_colored("Yeni Portföy (Kullanıcı) Adı: ", 'magenta')).strip()
-    else:
-        print("Sistemde henüz kayıtlı bir portföy bulunmuyor.")
-        p_name = input("Yeni Portföy (Kullanıcı) Adı: ").strip()
-        
-    if not p_name:
-        p_name = "default"
-        
-    set_profile(p_name)
-    set_logger_profile(p_name)
-    print(f"\n--> [{p_name.upper()}] portföyü aktif edildi <--")
-    return p_name
+            print(_colored("Sistemde henüz kayıtlı bir portföy bulunmuyor.", 'yellow', True))
+            while True:
+                p_name = input(_colored("Yeni Portföy (Kullanıcı) Adı: ", 'magenta')).strip()
+                if not p_name:
+                    p_name = "default"
+                set_profile(p_name)
+                set_logger_profile(p_name)
+                print(_colored(f"\n--> [{p_name.upper()}] portföyü aktif edildi <--", 'green', True))
+                return p_name
 
 def main():
     migrate_old_data()
