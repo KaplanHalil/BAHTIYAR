@@ -310,66 +310,70 @@ def main():
         portfolio = load_portfolio()
         print("\n")
         print_banner()
-        print(_colored(f"Aktif Portföy: ", 'yellow', True) + _colored(f"[{active_profile.upper()}]", 'green', True))
-        print(_colored(f"Mevcut Bütçeniz: ", 'yellow') + _colored(f"{budget:.2f} TL", 'green'))
-        print(_colored(f"Portföyünüzdeki Hisse Sayısı: ", 'yellow') + _colored(f"{len(portfolio)}", 'green'))
+        print(_colored(f"Aktif Portföy            : ", 'yellow', True) + _colored(f"[{active_profile.upper()}]", 'green', True))
+        print(_colored(f"Mevcut Nakit Bütçeniz    : ", 'yellow', True) + _colored(f"{budget:.2f} TL", 'green', True))
+        print(_colored(f"Portföydeki Hisse Sayısı : ", 'yellow', True) + _colored(f"{len(portfolio)}", 'cyan', True))
         ai_ok = is_ai_configured()
-        ai_badge = _colored(f" [AI:{get_active_provider().upper()}]", 'cyan') if ai_ok else _colored(" [AI:Kapalı]", 'yellow')
-        print("\nMenü:")
-        print("1. Bütçeyi Görüntüle / Güncelle")
-        print("2. Piyasayı Analiz Et ve Alım Tavsiyesi Ver" + ai_badge)
-        print("3. Portföyümü Görüntüle ve Sat/Tut Tavsiyeleri Al")
-        print("4. Portföye Manuel Hisse Ekle")
-        print("5. Mevcut Portföyü Sıfırla veya Sil")
-        print("6. Diğer Portföye Geç")
-        print("7. Hisse Senedi Listesini Yönet")
-        print("8. 🤖 Yapay Zeka / Haber Analizi Ayarları")
-        print("9. Backtest Modu (Son 2 Yıl Test)")
-        print("10. 📊 AI Performans Raporu (AI vs Teknik Karşılaştırması)")
-        print("11. Çıkış")
+        ai_badge = _colored(f" [AI:{get_active_provider().upper()}]", 'cyan', True) if ai_ok else _colored(" [AI:Kapalı]", 'yellow')
 
-        choice = input("\nSeçiminiz (1-11): ")
+        print("\n" + _colored("┌─────────────────────────────────────────────────────────────┐", 'cyan'))
+        print(_colored("│                   📊 ANA MENÜ SEÇENEKLERİ                   │", 'cyan', True))
+        print(_colored("├─────────────────────────────────────────────────────────────┤", 'cyan'))
+        print(f"│  {_colored(' 1', 'yellow', True)}. 💰 Bütçeyi Görüntüle / Güncelle                         │")
+        print(f"│  {_colored(' 2', 'green', True)}. 📈 Piyasayı Analiz Et ve Alım Tavsiyesi Ver{ai_badge}   │")
+        print(f"│  {_colored(' 3', 'green', True)}. 💼 Portföyümü Görüntüle ve Sat/Tut Tavsiyeleri Al       │")
+        print(f"│  {_colored(' 4', 'blue', True)}. ➕ Portföye Manuel Hisse Ekle                            │")
+        print(f"│  {_colored(' 5', 'red', True)}. 🗑️  Mevcut Portföyü Sıfırla veya Sil                     │")
+        print(f"│  {_colored(' 6', 'magenta', True)}. 🔄 Diğer Portföye Geç                                   │")
+        print(f"│  {_colored(' 7', 'cyan', True)}. 📋 Hisse Senedi Listesini Yönet                         │")
+        print(f"│  {_colored(' 8', 'blue', True)}. 🤖 Yapay Zeka / Haber Analizi Ayarları                  │")
+        print(f"│  {_colored(' 9', 'yellow', True)}. 🧪 Backtest Modu (Son 2 Yıl Test)                        │")
+        print(f"│  {_colored('10', 'cyan', True)}. 📊 AI Performans Raporu (Sinyal Takibi)                 │")
+        print(f"│  {_colored('11', 'red', True)}. 🚪 Çıkış                                                │")
+        print(_colored("└─────────────────────────────────────────────────────────────┘", 'cyan'))
+
+        choice = input(_colored("\nSeçiminiz (1-11): ", 'magenta', True)).strip()
         
         if choice == '1':
             try:
-                new_budget_str = input(f"Yeni bütçenizi girin (TL) [Mevcut: {budget:.2f}]: ")
-                if not new_budget_str.strip():
+                new_budget_str = input(_colored(f"Yeni bütçenizi girin (TL) [Mevcut: {budget:.2f}]: ", 'magenta')).strip()
+                if not new_budget_str:
                     continue
                 new_budget = float(new_budget_str)
                 if new_budget < 0:
-                    print("Bütçe negatif olamaz!")
+                    print(_colored("❌ Bütçe negatif olamaz!", 'red', True))
                 else:
                     fark = new_budget - budget
                     save_budget(new_budget)
                     log_transaction("Bütçe Güncelleme", "-", "-", "-", fark, new_budget)
-                    print("Bütçeniz başarıyla güncellendi.")
+                    print(_colored("✅ Bütçeniz başarıyla güncellendi.", 'green', True))
             except ValueError:
-                print("Lütfen geçerli bir sayı girin.")
+                print(_colored("❌ Lütfen geçerli bir sayı girin.", 'red'))
                 
         elif choice == '2':
             if budget <= 0:
-                print("Lütfen önce bütçenizi güncelleyin (Bütçeniz 0 TL).")
+                print(_colored("⚠️  Lütfen önce bütçenizi güncelleyin (Bütçeniz 0 TL).", 'yellow', True))
                 continue
                 
-            print("\nPiyasa verileri çekiliyor (hisseler), lütfen bekleyin...")
+            print(_colored("\n🔎 Piyasa verileri çekiliyor (hisseler), lütfen bekleyin...", 'cyan'))
             from data_fetcher import BIST_STOCKS, MARKET_INDEX
             data_dict = fetch_data()
             
             stocks_count = len([t for t in data_dict.keys() if t.endswith('.IS') and t != MARKET_INDEX])
             
-            print(f"> {stocks_count}/{len(BIST_STOCKS)} hissenin verisi çekildi.")
+            print(_colored(f"> {stocks_count}/{len(BIST_STOCKS)} hissenin verisi çekildi.", 'green'))
             
-            print("Veriler analiz ediliyor (hisseler)...")
+            print(_colored("⚡ Veriler gelişmiş teknik analiz motoruyla değerlendiriliyor...", 'yellow'))
             recommendations = analyze_stocks(data_dict)
 
             if not recommendations:
-                print("Şu anki piyasa koşullarında stratejiye uyan hisse bulunamadı.")
+                print(_colored("⚠️  Şu anki piyasa koşullarında stratejiye uyan hisse bulunamadı.", 'yellow', True))
                 continue
 
             # ── AI Haber Sentiment Analizi (opsiyonel) ──────────────── #
             top_recs = recommendations[:10]
             if is_ai_configured():
-                print(_colored(f"\n🤖 AI ({get_active_provider().upper()}) ile haber duygu analizi yapılıyor...", 'cyan'))
+                print(_colored(f"\n🤖 AI ({get_active_provider().upper()}) ile haber duygu analizi yapılıyor...", 'cyan', True))
                 stocks_map = {s['kod']: s.get('ad', '') for s in get_stock_list_with_names()}
                 tickers_info = [
                     {'kod': r['Hisse'], 'ad': stocks_map.get(r['Hisse'], '')}
@@ -377,66 +381,76 @@ def main():
                 ]
                 sentiment_results = analyze_sentiment_batch(tickers_info, verbose=True)
                 top_recs = enrich_with_sentiment(top_recs, sentiment_results)
-                print(_colored("✓ Haber analizi tamamlandı.", 'green'))
+                print(_colored("✓ Haber analizi tamamlandı.", 'green', True))
 
-                # ── Sinyalleri kaydet (ilerleyen günlerde ölçülecek) ── #
+                # ── Sinyalleri kaydet ── #
                 kaydedilen = record_signals(top_recs, sentiment_results)
                 if kaydedilen > 0:
                     print(_colored(f"  📝 {kaydedilen} yeni sinyal kaydedildi (Menü 10'dan takip edebilirsiniz).", 'cyan'))
             else:
                 sentiment_results = {}
 
-            print("\n" + "="*70)
-            print(_colored("*** HİSSELER - TEKNİK + HABER ANALİZ SONUÇLARI ***", 'cyan', True))
-            print("="*70)
+            print("\n" + _colored("="*75, 'cyan'))
+            print(_colored("          *** 📈 BIST HİSSE TAVSİYELERİ VE TEKNİK DETAYLAR ***", 'cyan', True))
+            print(_colored("="*75, 'cyan'))
             for r in top_recs:
                 display    = r.get('Display', r['Hisse'])
                 efektif    = r.get('EfektiveSkor', r['Skor'])
-                skor_str   = f"{r['Skor']}/15"
+                skor_str   = _colored(f"{r['Skor']}/15", 'yellow', True)
+                sinyal_col = {'Güçlü': 'green', 'Orta': 'yellow', 'Zayıf': 'red'}.get(r['Sinyal'], 'white')
+                sinyal_str = _colored(r['Sinyal'], sinyal_col, True)
+
                 if efektif != r['Skor']:
                     delta = efektif - r['Skor']
-                    delta_str = _colored(f" (AI{'+' if delta>0 else ''}{delta}→{efektif})", 'cyan')
+                    delta_str = _colored(f" (AI{'+' if delta>0 else ''}{delta}→{efektif})", 'cyan', True)
                 else:
                     delta_str = ''
-                print(f"- {display:<12} | Fiyat={r['Fiyat']:.2f} TL | Skor={skor_str}{delta_str} | Sinyal: {r['Sinyal']}")
+
+                disp_str = _colored(f"{display:<12}", 'green', True)
+                fiyat_str = _colored(f"{r['Fiyat']:.2f} TL", 'white', True)
+                print(f"- {disp_str} | Fiyat={fiyat_str} | Skor={skor_str}{delta_str} | Sinyal: {sinyal_str}")
                 if 'HedefFiyat' in r and 'StopLoss' in r:
                     hedef = r['HedefFiyat']
                     stop = r['StopLoss']
                     rr = r.get('RiskOdul', 1.5)
-                    print(f"  ├─ 🎯 Hedef: {_colored(f'{hedef:.2f} TL', 'green')} | 🛑 Stop-Loss: {_colored(f'{stop:.2f} TL', 'red')} | R/R: 1:{rr:.1f}")
-                print(f"  └─ {r['Nedenler']}")
+                    print(f"  ├─ 🎯 Hedef: {_colored(f'{hedef:.2f} TL', 'green', True)} | 🛑 Stop-Loss: {_colored(f'{stop:.2f} TL', 'red', True)} | R/R: 1:{rr:.1f}")
+                print(f"  └─ {_colored(r['Nedenler'], 'white')}")
                 
-            print("\nBütçenize göre portföy oluşturuluyor...")
+            print(_colored("\n💡 Bütçenize göre en uygun portföy dağılımı hesaplanıyor...", 'yellow'))
             allocations, remaining = allocate_budget(budget, recommendations)
             
             if not allocations:
-                print("Bütçeniz önerilen hisselerden almak için yetersiz.")
+                print(_colored("⚠️  Bütçeniz önerilen hisselerden almak için yetersiz.", 'red'))
             else:
-                print("\n" + "*" * 70)
-                print("        TAVSİYE EDİLEN PORTFÖY DAĞILIMI")
-                print("*" * 70)
+                print("\n" + _colored("*" * 75, 'yellow'))
+                print(_colored("                 💰 TAVSİYE EDİLEN SEPET DAĞILIMI", 'yellow', True))
+                print(_colored("*" * 75, 'yellow'))
                 total_spent = 0
                 for item in allocations:
                     display = item.get('Display', item['Hisse'])
-                    print(f"{display:<12} | {item['Lot']:<4} lot  | {item['Fiyat']:>7.2f} TL/lot  | Toplam: {item['Toplam Maliyet']:>8.2f} TL")
+                    disp_col = _colored(f"{display:<12}", 'cyan', True)
+                    lot_col  = _colored(f"{item['Lot']:<4} lot", 'yellow', True)
+                    fiyat_col = _colored(f"{item['Fiyat']:>7.2f} TL/lot", 'white')
+                    toplam_col = _colored(f"{item['Toplam Maliyet']:>8.2f} TL", 'green', True)
+                    print(f"  {disp_col} | {lot_col} | {fiyat_col} | Toplam: {toplam_col}")
                     total_spent += item['Toplam Maliyet']
                     
-                print("-" * 70)
-                print(f"Harcanan Toplam Bütçe: {total_spent:.2f} TL")
-                print(f"Kalan Nakit:          {remaining:.2f} TL")
+                print(_colored("-" * 75, 'yellow'))
+                print(f"Harcanan Toplam Bütçe : {_colored(f'{total_spent:.2f} TL', 'green', True)}")
+                print(f"Kalan Nakit Bütçeniz  : {_colored(f'{remaining:.2f} TL', 'cyan', True)}")
                 
-            al_cevap = input("\nBu tavsiyelerden veya kendi tercihinizle hisse aldınız mı? (E/H): ").strip().upper()
+            al_cevap = input(_colored("\nBu tavsiyelerden veya kendi tercihinizle hisse aldınız mı? (E/H): ", 'magenta', True)).strip().upper()
             if al_cevap == 'E':
                 while True:
-                    asset_kodu = input("\nAldığınız Hisse Kodu (Örn: THYAO): ").strip().upper()
+                    asset_kodu = input(_colored("\nAldığınız Hisse Kodu (Örn: THYAO): ", 'magenta')).strip().upper()
                     
                     try:
-                        miktar = int(input(f"[{asset_kodu}] Kaç lot aldınız: ").strip())
-                        alis_fiyati = float(input(f"[{asset_kodu}] Alış Fiyatınız (TL/lot): ").strip())
+                        miktar = int(input(_colored(f"[{asset_kodu}] Kaç lot aldınız: ", 'magenta')).strip())
+                        alis_fiyati = float(input(_colored(f"[{asset_kodu}] Alış Fiyatınız (TL/lot): ", 'magenta')).strip())
                         
                         toplam_tutar = miktar * alis_fiyati
                         if toplam_tutar > budget:
-                            print(f"Hata: Alış tutarı ({toplam_tutar:.2f} TL) mevcut bütçenizden ({budget:.2f} TL) fazla olamaz!")
+                            print(_colored(f"❌ Hata: Alış tutarı ({toplam_tutar:.2f} TL) mevcut bütçenizden ({budget:.2f} TL) fazla olamaz!", 'red', True))
                         else:
                             if asset_kodu in portfolio:
                                 mevcut_lot = portfolio[asset_kodu]['lot']
@@ -451,43 +465,43 @@ def main():
                             save_portfolio(portfolio)
                             save_budget(budget)
                             log_transaction("Hisse Alım (lot)", asset_kodu, miktar, alis_fiyati, -toplam_tutar, budget)
-                            print(f"{asset_kodu} başarıyla portföye eklendi. Kalan Bütçeniz: {budget:.2f} TL")
+                            print(_colored(f"✅ {asset_kodu} başarıyla portföye eklendi. Kalan Bütçeniz: {budget:.2f} TL", 'green', True))
                     except ValueError:
-                        print("Hatalı giriş yaptınız. Lütfen miktar için tam sayı, fiyat için sayı girin.")
+                        print(_colored("❌ Hatalı giriş yaptınız. Lütfen miktar için tam sayı, fiyat için sayı girin.", 'red'))
                         
-                    baska = input("\nAldığınız başka hisse var mı? (E/H): ").strip().upper()
+                    baska = input(_colored("\nAldığınız başka hisse var mı? (E/H): ", 'magenta')).strip().upper()
                     if baska != 'E':
                         break
 
         elif choice == '3':
             if not portfolio:
-                print("\nPortföyünüzde henüz hisse bulunmuyor.")
+                print(_colored("\n⚠️  Portföyünüzde henüz hisse bulunmuyor.", 'yellow'))
                 continue
 
-            print("\nPortföy verileriniz için güncel piyasa fiyatları çekiliyor...")
+            print(_colored("\n🔎 Portföy verileriniz için güncel piyasa fiyatları çekiliyor...", 'cyan'))
             from data_fetcher import BIST_STOCKS
 
             fetch_list = list(set(BIST_STOCKS + [f"{t}.IS" for t in portfolio.keys()]))
             data_dict = fetch_data(fetch_list)
 
             stocks_count = len([t for t in data_dict.keys() if t.endswith('.IS')])
-            print(f"> {stocks_count}/{len(fetch_list)} hissenin verisi çekildi.")
+            print(_colored(f"> {stocks_count}/{len(fetch_list)} hissenin verisi çekildi.", 'green'))
 
-            print("Portföyünüz teknik olarak değerlendiriliyor...")
+            print(_colored("⚡ Portföyünüz teknik analiz ve iz süren stop motoru ile değerlendiriliyor...", 'yellow'))
             evaluations = evaluate_portfolio(portfolio, data_dict)
 
             # ── AI Haber Sentiment (portföy hisseleri için) ────────────── #
             portfolio_sentiment = {}
             if is_ai_configured():
-                print(_colored(f"\n🤖 AI ({get_active_provider().upper()}) ile portföy haber analizi yapılıyor...", 'cyan'))
+                print(_colored(f"\n🤖 AI ({get_active_provider().upper()}) ile portföy haber analizi yapılıyor...", 'cyan', True))
                 stocks_map = {s['kod']: s.get('ad', '') for s in get_stock_list_with_names()}
                 port_tickers = [{'kod': h, 'ad': stocks_map.get(h, '')} for h in portfolio.keys()]
                 portfolio_sentiment = analyze_sentiment_batch(port_tickers, verbose=True)
-                print(_colored("✓ Haber analizi tamamlandı.", 'green'))
+                print(_colored("✓ Haber analizi tamamlandı.", 'green', True))
 
-            print("\n" + "=" * 80)
+            print("\n" + _colored("=" * 80, 'cyan'))
             print(_colored(f"          [{active_profile.upper()}] PORTFÖY DURUMU — TEKNİK + HABER ANALİZİ", 'cyan', True))
-            print("=" * 80)
+            print(_colored("=" * 80, 'cyan'))
 
             satilacaklar = []
             toplam_portfoy_degeri = 0
@@ -509,10 +523,10 @@ def main():
 
                 # K/Z rengi
                 kz_color = 'green' if k_z >= 0 else 'red'
-                kz_str   = _colored(f"%{k_z:>+6.2f}", kz_color)
+                kz_str   = _colored(f"%{k_z:>+6.2f}", kz_color, True)
 
                 print(f"📊 {_colored(hisse, 'yellow', True):<5} | "
-                      f"Lot: {lot:<4} | "
+                      f"Lot: {_colored(str(lot), 'cyan'):<4} | "
                       f"Maliyet: {maliyet:>7.2f} TL | "
                       f"Güncel: {fiyat:>7.2f} TL | "
                       f"K/Z: {kz_str}")
@@ -520,28 +534,27 @@ def main():
                 # Teknik tavsiye satırı
                 durum_color = {'Sat': 'red', 'Dikkatli Tut': 'yellow', 'Güçlü Tut': 'green'}.get(durum, 'white')
                 t_stop = ev.get('TrailingStop', 0.0)
-                t_stop_str = f" | 🛡️ İz Süren Stop: {t_stop:.2f} TL" if t_stop > 0 else ""
+                t_stop_str = f" | 🛡️ İz Süren Stop: {_colored(f'{t_stop:.2f} TL', 'cyan', True)}" if t_stop > 0 else ""
                 print(f"   📈 Teknik : {_colored(durum, durum_color, True)}{t_stop_str} — {neden}")
 
                 # AI Sentiment satırı (varsa)
                 sent = portfolio_sentiment.get(hisse)
-                nihai_durum = durum   # AI ile revize edilebilir
+                nihai_durum = durum
 
                 if sent and sent.get('kaynak') != 'yok':
                     sent_line = format_sentiment(sent)
                     print(f"   {sent_line}")
 
-                    # AI uyarı mantığı: teknik TUT ama haber ÇOK OLUMSUZ → Sat Uyarısı
                     if sent.get('etiket') == 'COK_OLUMSUZ' and durum == 'Güçlü Tut':
                         print(_colored("   ⚠️  AI SAT UYARISI: Çok olumsuz haber akışı teknik sinyale rağmen risk oluşturuyor!", 'red', True))
                         nihai_durum = 'Dikkatli Tut'
                     elif sent.get('etiket') == 'OLUMSUZ' and durum == 'Güçlü Tut':
-                        print(_colored("   ⚡ AI DİKKAT: Olumsuz haberler mevcut, takipte kalın.", 'yellow'))
+                        print(_colored("   ⚡ AI DİKKAT: Olumsuz haberler mevcut, takipte kalın.", 'yellow', True))
                         nihai_durum = 'Dikkatli Tut'
                     elif sent.get('etiket') in ('COK_OLUMLU', 'OLUMLU') and durum == 'Sat':
-                        print(_colored("   💡 AI NOT: Olumlu haber akışı var; satış kararını gözden geçirin.", 'cyan'))
+                        print(_colored("   💡 AI NOT: Olumlu haber akışı var; satış kararını gözden geçirin.", 'cyan', True))
 
-                print("-" * 80)
+                print(_colored("-" * 80, 'cyan'))
 
                 if nihai_durum in ['Sat', 'Dikkatli Tut']:
                     satilacaklar.append(ev)
@@ -550,36 +563,45 @@ def main():
             genel_kz_yuzde = (genel_kz_tl / toplam_maliyet) * 100 if toplam_maliyet > 0 else 0
             kz_renk        = 'green' if genel_kz_tl >= 0 else 'red'
 
-            print("\n" + "=" * 80)
-            print(f"Portföyün Toplam Maliyeti    : {toplam_maliyet:>12.2f} TL")
-            print(f"Portföyün Güncel Toplam Değeri: {toplam_portfoy_degeri:>12.2f} TL")
+            print("\n" + _colored("=" * 80, 'cyan'))
+            print(f"Portföyün Toplam Maliyeti    : {_colored(f'{toplam_maliyet:>12.2f} TL', 'white', True)}")
+            print(f"Portföyün Güncel Toplam Değeri: {_colored(f'{toplam_portfoy_degeri:>12.2f} TL', 'cyan', True)}")
             print(_colored(
                 f"Genel Portföy K/Z Durumu     : {genel_kz_tl:>+12.2f} TL ({genel_kz_yuzde:>+.2f}%)",
                 kz_renk, True
             ))
-            print("=" * 80)
+            print(_colored("=" * 80, 'cyan'))
 
             log_transaction("Portföy Değerlemesi", "-", "-", "-", toplam_portfoy_degeri, budget, genel_kz_tl, genel_kz_yuzde)
             
-            sat_cevap = input("\nPortföyünüzdeki herhangi bir hisseyi satmak ister misiniz? (E/H): ").strip().upper()
+            sat_cevap = input(_colored("\nPortföyünüzdeki herhangi bir hisseyi satmak ister misiniz? (E/H): ", 'magenta', True)).strip().upper()
             if sat_cevap == 'E':
                 satis_yapildi = False
                 while True:
-                    satilan_asset = input("\nHangi hisseyi satmak istiyorsunuz? (Hisse kodunu yazın): ").strip().upper()
+                    satilan_asset = input(_colored("\nHangi hisseyi satmak istiyorsunuz? (Hisse kodu): ", 'magenta', True)).strip().upper()
                     
                     if satilan_asset in portfolio:
                         try:
-                            sat_miktar = int(input(f"Kaç lot satacaksınız? (Mevcut: {portfolio[satilan_asset]['lot']}): "))
+                            sat_miktar = int(input(_colored(f"Kaç lot satacaksınız? (Mevcut: {portfolio[satilan_asset]['lot']}): ", 'magenta')).strip())
                             if sat_miktar <= 0 or sat_miktar > portfolio[satilan_asset]['lot']:
-                                print("Geçersiz miktar!")
+                                print(_colored("❌ Geçersiz miktar!", 'red'))
                             else:
                                 maliyet_fiyati = portfolio[satilan_asset]['maliyet']
                                 guncel_fiyat = next((item['Fiyat'] for item in evaluations if item['Hisse'] == satilan_asset), maliyet_fiyati)
                                 
-                                kar_zarar_tl = (guncel_fiyat - maliyet_fiyati) * sat_miktar
-                                kar_zarar_yuzde = ((guncel_fiyat - maliyet_fiyati) / maliyet_fiyati) * 100 if maliyet_fiyati > 0 else 0
+                                satis_input = input(_colored(f"[{satilan_asset}] Satış Fiyatınız (TL/lot) [Boş = Güncel Fiyat {guncel_fiyat:.2f} TL]: ", 'magenta')).strip()
+                                if satis_input:
+                                    satis_fiyati = float(satis_input)
+                                    if satis_fiyati <= 0:
+                                        print(_colored("❌ Satış fiyatı 0'dan büyük olmalıdır!", 'red'))
+                                        continue
+                                else:
+                                    satis_fiyati = guncel_fiyat
+
+                                kar_zarar_tl = (satis_fiyati - maliyet_fiyati) * sat_miktar
+                                kar_zarar_yuzde = ((satis_fiyati - maliyet_fiyati) / maliyet_fiyati) * 100 if maliyet_fiyati > 0 else 0
                                 
-                                satis_geliri = sat_miktar * guncel_fiyat
+                                satis_geliri = sat_miktar * satis_fiyati
                                 budget += satis_geliri
                                 
                                 portfolio[satilan_asset]['lot'] -= sat_miktar
@@ -589,43 +611,47 @@ def main():
                                 save_portfolio(portfolio)
                                 save_budget(budget)
                                 
-                                log_transaction("Hisse Satım (lot)", satilan_asset, sat_miktar, guncel_fiyat, satis_geliri, budget, kar_zarar_tl, kar_zarar_yuzde)
-                                print(f"\n{satilan_asset} satıldı. Satış Geliri: {satis_geliri:.2f} TL.")
-                                print(f"İşlemden Elde Edilen K/Z: {kar_zarar_tl:+.2f} TL (%{kar_zarar_yuzde:+.2f})")
-                                print(f"Yeni Bütçeniz: {budget:.2f} TL")
+                                log_transaction("Hisse Satım (lot)", satilan_asset, sat_miktar, satis_fiyati, satis_geliri, budget, kar_zarar_tl, kar_zarar_yuzde)
+                                print(_colored(f"\n✅ {satilan_asset} satıldı ({sat_miktar} lot @ {satis_fiyati:.2f} TL). Satış Geliri: {satis_geliri:.2f} TL.", 'green', True))
+                                kz_col = 'green' if kar_zarar_tl >= 0 else 'red'
+                                print(_colored(f"İşlemden Elde Edilen K/Z: {kar_zarar_tl:+.2f} TL (%{kar_zarar_yuzde:+.2f})", kz_col, True))
+                                print(_colored(f"Yeni Bütçeniz: {budget:.2f} TL", 'cyan', True))
                                 satis_yapildi = True
                                 
                         except ValueError:
-                            print("Lütfen geçerli bir sayı girin.")
+                            print(_colored("❌ Lütfen geçerli bir sayı girin.", 'red'))
                     else:
-                        print("Bu hisse portföyünüzde bulunmuyor.")
+                        print(_colored("❌ Bu hisse portföyünüzde bulunmuyor.", 'red'))
                         
                     if not portfolio:
-                        print("\nPortföyünüzde satılacak hisse kalmadı.")
+                        print(_colored("\nPortföyünüzde satılacak hisse kalmadı.", 'yellow'))
                         break
                         
-                    baska_sat = input("\nSatmak istediğiniz başka hisse var mı? (E/H): ").strip().upper()
+                    baska_sat = input(_colored("\nSatmak istediğiniz başka hisse var mı? (E/H): ", 'magenta')).strip().upper()
                     if baska_sat != 'E':
                         break
                         
                 if satis_yapildi:
-                    print("\nNakitiniz güncellendi. Yeni bütçenizle alınabilecek hisseler hesaplanıyor...")
+                    print(_colored("\n🔄 Nakitiniz güncellendi. Yeni bütçenizle alınabilecek hisseler hesaplanıyor...", 'cyan'))
                     recommendations = analyze_stocks(data_dict)
                     allocations, remaining = allocate_budget(budget, recommendations)
                     
                     if allocations:
-                        print("\nİşte sattığınız hisselerin yerine alınabilecek öneriler:")
+                        print(_colored("\nİşte sattığınız hisselerin yerine alınabilecek öneriler:", 'yellow', True))
                         for item in allocations:
-                            print(f"- {item['Hisse']:<6}: {item['Lot']} Lot alınabilir (Toplam: {item['Toplam Maliyet']:.2f} TL) | Neden: {item['Nedenler']}")
+                            disp = _colored(item['Hisse'], 'cyan', True)
+                            lot_str = _colored(f"{item['Lot']} Lot", 'yellow', True)
+                            top_str = _colored(f"{item['Toplam Maliyet']:.2f} TL", 'green', True)
+                            print(f"- {disp:<6}: {lot_str} alınabilir (Toplam: {top_str}) | Neden: {item['Nedenler']}")
                     else:
-                        print("Şu an yeni alım için uygun kriterde hisse bulunamadı.")
+                        print(_colored("Şu an yeni alım için uygun kriterde hisse bulunamadı.", 'yellow'))
 
         elif choice == '4':
             while True:
-                hisse_kodu = input("\nHisse Kodu (Örn: THYAO): ").strip().upper()
+                hisse_kodu = input(_colored("\nHisse Kodu (Örn: THYAO): ", 'magenta', True)).strip().upper()
                 try:
-                    lot_miktari = int(input(f"[{hisse_kodu}] Kaç Lot: ").strip())
-                    alis_fiyati = float(input(f"[{hisse_kodu}] Maliyetiniz (TL): ").strip())
+                    lot_miktari = int(input(_colored(f"[{hisse_kodu}] Kaç Lot: ", 'magenta')).strip())
+                    alis_fiyati = float(input(_colored(f"[{hisse_kodu}] Maliyetiniz (TL): ", 'magenta')).strip())
                     
                     toplam_tutar = lot_miktari * alis_fiyati
                     budget -= toplam_tutar
@@ -642,39 +668,39 @@ def main():
                     save_portfolio(portfolio)
                     save_budget(budget)
                     log_transaction("Manuel Hisse Ekleme", hisse_kodu, lot_miktari, alis_fiyati, -toplam_tutar, budget)
-                    print(f"{hisse_kodu} portföye eklendi. İşlem tutarı bütçeden düşüldü. Yeni bütçeniz: {budget:.2f} TL")
+                    print(_colored(f"✅ {hisse_kodu} portföye eklendi. İşlem tutarı bütçeden düşüldü. Yeni bütçeniz: {budget:.2f} TL", 'green', True))
                 except ValueError:
-                    print("Hatalı giriş!")
+                    print(_colored("❌ Hatalı giriş yaptınız!", 'red'))
                     
-                baska = input("\nEkleyeceğiniz başka hisse var mı? (E/H): ").strip().upper()
+                baska = input(_colored("\nEkleyeceğiniz başka hisse var mı? (E/H): ", 'magenta')).strip().upper()
                 if baska != 'E':
                     break
                 
         elif choice == '5':
-            print(f"\n--- [{active_profile.upper()}] Portföy Yönetimi ---")
-            print("1. Portföyü Sıfırla (Bütçe ve hisseler temizlenir, log dosyası korunur)")
-            print("2. Portföyü Tamamen Sil (Tüm kayıtlar ve log dosyası kalıcı olarak silinir)")
-            print("3. İptal")
+            print(_colored(f"\n--- [{active_profile.upper()}] Portföy Yönetimi ---", 'cyan', True))
+            print(_colored("1. Portföyü Sıfırla (Bütçe ve hisseler temizlenir, log korunur)", 'yellow'))
+            print(_colored("2. Portföyü Tamamen Sil (Tüm kayıtlar ve log dosyası silinir)", 'red'))
+            print(_colored("3. İptal", 'white'))
             
-            sub_choice = input("Seçiminiz: ").strip()
+            sub_choice = input(_colored("Seçiminiz (1-3): ", 'magenta')).strip()
             if sub_choice == '1':
-                onay = input(f"[{active_profile}] portföyündeki bütçe ve hisseler SIFIRLANACAK. Emin misiniz? (E/H): ").strip().upper()
+                onay = input(_colored(f"[{active_profile}] portföyündeki bütçe ve hisseler SIFIRLANACAK. Emin misiniz? (E/H): ", 'yellow', True)).strip().upper()
                 if onay == 'E':
                     reset_current_profile()
                     log_transaction("Portföy Sıfırlama", "-", "-", "-", 0, 0)
-                    print(f"\n[{active_profile}] portföyü başarıyla sıfırlandı.")
+                    print(_colored(f"\n✅ [{active_profile}] portföyü başarıyla sıfırlandı.", 'green', True))
             elif sub_choice == '2':
-                onay = input(f"[{active_profile}] portföyü ve işlem geçmişi TAMAMEN SİLİNECEK. Emin misiniz? (E/H): ").strip().upper()
+                onay = input(_colored(f"[{active_profile}] portföyü ve işlem geçmişi TAMAMEN SİLİNECEK. Emin misiniz? (E/H): ", 'red', True)).strip().upper()
                 if onay == 'E':
                     delete_profile(active_profile)
-                    print(f"\n[{active_profile}] portföyü kalıcı olarak silindi.")
-                    print("Ana ekrana yönlendiriliyorsunuz...")
+                    print(_colored(f"\n🗑️  [{active_profile}] portföyü kalıcı olarak silindi.", 'red', True))
+                    print(_colored("Ana ekrana yönlendiriliyorsunuz...", 'cyan'))
                     active_profile = init_profile()
             else:
-                print("İşlem iptal edildi.")
+                print(_colored("İşlem iptal edildi.", 'yellow'))
 
         elif choice == '6':
-            print(f"\n[{active_profile.upper()}] portföyünden çıkılıyor...")
+            print(_colored(f"\n[{active_profile.upper()}] portföyünden çıkılıyor...", 'cyan'))
             active_profile = init_profile()
 
         elif choice == '7':
@@ -689,26 +715,26 @@ def main():
                 from backtest import run_backtest_interactive
                 run_backtest_interactive()
             except Exception as e:
-                print(f"Backtest modu çalıştırılamadı: {e}")
+                print(_colored(f"❌ Backtest modu çalıştırılamadı: {e}", 'red'))
 
         elif choice == '10':
             # AI PERFORMANS RAPORU
-            print("\n" + "=" * 80)
+            print("\n" + _colored("=" * 80, 'cyan'))
             print(_colored("  📊 AI PERFORMANS RAPORU — Sinyal Takip ve Karşılaştırma", 'cyan', True))
-            print("=" * 80)
+            print(_colored("=" * 80, 'cyan'))
             if not is_ai_configured():
-                print(_colored("  ⚠️  AI yapılandırılmamış. Önce Menü 8'den API anahtarı girin.", 'yellow'))
+                print(_colored("  ⚠️  AI yapılandırılmamış. Önce Menü 8'den API anahtarı girin.", 'yellow', True))
             else:
                 try:
                     print_performance_report()
                 except Exception as e:
-                    print(f"  Rapor oluşturulamadı: {e}")
+                    print(_colored(f"  ❌ Rapor oluşturulamadı: {e}", 'red'))
 
         elif choice == '11':
-            print("Programdan çıkılıyor. Bol kazançlar!")
+            print(_colored("Programdan çıkılıyor. Bol kazançlar! 👋", 'green', True))
             sys.exit(0)
         else:
-            print("Geçersiz seçim.")
+            print(_colored("❌ Geçersiz seçim. Lütfen 1-11 arasında bir sayı girin.", 'red', True))
 
 if __name__ == "__main__":
     main()

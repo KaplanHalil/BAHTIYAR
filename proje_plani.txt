@@ -207,4 +207,6 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
     - **Göreceli Güç (Alpha):** Hisse 20 günlük getirisinin BIST100 endeks getirisini %4'ten fazla aşması durumunda +1 puan bonusu.
 - Maksimum teknik skor 10 puandan 15 puana çıkarıldı (`MAX_SKOR = 15`, `MIN_BUY_SCORE = 6`).
 - `main.py` arayüzü güncellenerek hedef fiyat, stop-loss seviyesi, risk/ödül oranı ve iz süren stop bilgileri renkli olarak ekrana basıldı.
+- **Portföy Satış Güncellemesi:** Hisse satımı sırasında kullanıcının kendi gerçekleşen satış fiyatını girebilmesi sağlandı (Enter'a basılırsa varsayılan olarak anlık borsa fiyatını kullanır).
+- **Zengin Renkli Terminal Arayüzü (CLI UI/UX):** Tüm ana menü seçenekleri, çerçeveler, veri tabloları, işlem bildirimleri (başarı/hata) ve kullanıcı yönlendirmeleri yüksek kontrastlı, renkli ve modern ANSI / colorama standartlarıyla yenilendi.
 
