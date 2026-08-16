@@ -46,7 +46,7 @@ class BacktestEngine:
         self.max_stocks = max_stocks
         self.session_mode = session_mode   # 'daily' | 'twice_daily'
         self.stop_loss_pct = -12.0
-        self.trailing_stop_pct = -15.0
+        self.trailing_stop_pct = -18.0
         self.take_profit_pct = 999.0      # Sabit kâr alma yerine İz Süren Stop (Trailing Stop) ile kârı büyüt
         self.cooldown_days = 5          # Stop olan hisseye 30 gün yerine 5 gün soğuma süresi
 
@@ -174,7 +174,7 @@ class BacktestEngine:
     #  ANA SİMÜLASYON DÖNGÜSÜ
     # ------------------------------------------------------------------ #
 
-    def run_simulation(self):
+    def run_simulation(self, preloaded_data=None):
         """Backtest simülasyonunu çalıştır."""
         mode_label = {
             'daily':       'Günlük (her gün 1 analiz — Close)',
@@ -190,7 +190,7 @@ class BacktestEngine:
         print(f"Analiz Sıklığı     : {mode_label}")
         print("=" * 80 + "\n")
 
-        all_data = self.fetch_historical_data()
+        all_data = preloaded_data if preloaded_data is not None else self.fetch_historical_data()
         if not all_data:
             print("Veri çekme başarısız!")
             return False
@@ -304,7 +304,7 @@ class BacktestEngine:
     def _get_recommendations_and_buy(self, current_date, data_for_analysis,
                                       available_slots, price_type='close', all_data=None):
         """
-        Teknik analiz ile hisse tavsiyesi alır ve bütçeye göre alım yapar.
+        Piyasa sağlık endeksi ve teknik analiz ile hisse tavsiyesi alır ve bütçeye göre alım yapar.
 
         Args:
             price_type : 'close' → analizden gelen fiyat (Close)
@@ -312,9 +312,13 @@ class BacktestEngine:
             all_data   : price_type='open' olduğunda gerekli; tüm tarihsel veri
         """
         try:
-            from analyzer import analyze_stocks
+            from analyzer import analyze_stocks, calculate_market_health
 
-            recommendations = analyze_stocks(data_for_analysis)
+            market_health = calculate_market_health(data_for_analysis)
+            if not market_health.get('allow_new_buys', True):
+                return
+
+            recommendations = analyze_stocks(data_for_analysis, market_health=market_health)
             if not recommendations:
                 return
 
@@ -326,10 +330,15 @@ class BacktestEngine:
             if not new_recs:
                 return
 
-            new_recs = new_recs[:available_slots]
+            max_allowed = min(available_slots, market_health.get('max_recommended_stocks', available_slots))
+            if max_allowed <= 0:
+                return
+
+            new_recs = new_recs[:max_allowed]
+            cash_res = market_health.get('cash_target_pct', 0.0)
 
             allocations, _ = allocate_budget(
-                self.current_budget, new_recs, len(new_recs)
+                self.current_budget, new_recs, len(new_recs), cash_reserve_pct=cash_res
             )
             if not allocations:
                 return
@@ -379,11 +388,13 @@ class BacktestEngine:
         Portföydeki hisseleri değerlendir; sat tavsiyesi gelenleri sat.
         """
         try:
-            from analyzer import evaluate_portfolio
+            from analyzer import evaluate_portfolio, calculate_market_health
+
+            market_health = calculate_market_health(data_for_analysis)
 
             # ── Hisse satış değerlendirmesi ──
             if self.portfolio:
-                evaluations = evaluate_portfolio(self.portfolio, data_for_analysis)
+                evaluations = evaluate_portfolio(self.portfolio, data_for_analysis, market_health=market_health)
                 for ev in evaluations:
                     ticker = ev['Hisse']
                     fiyat  = ev['Fiyat']

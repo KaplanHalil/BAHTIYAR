@@ -213,3 +213,62 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
 - **Backtest Algoritma & Parametre Optimizasyonu (Performans Teşhisi):**
   - **Teşhis:** Backtest simülasyonundaki 30 günlük karaliste (cooldown) ve %18 sabit kâr alma sınırlamasının kazanan hisseleri erken kestirip test sonucunu -%21.28 zarara sürüklediği tespit edildi.
   - **Düzeltme:** Soğuma süresi 30 günden 5 güne indirildi, Stop-Loss BİST oynaklığına uygun olarak -%12'ye genişletildi ve kâr eden hisselerin yükseliş trendi boyunca elinde tutulması (İz Süren Stop mantığı) sağlandı. Test sonucu **-%21.28 zarardan +%57.58 kâra** yükseltildi.
+
+## 30. MODERN TERMİNAL KULLANICI ARAYÜZÜ (TUI & OK TUŞLARI İLE GEZİNME) VE HAFTA SONU PİYASA ENTEGRASYONU [TAMAMLANDI]
+- **Ok Tuşları ile İnteraktif Terminal Gezinmesi (`ui_menu.py`):**
+  - Harici karmaşık C-bağımlılıklarına ihtiyaç duymadan, macOS/Linux (`termios`, `tty`) ve Windows (`msvcrt`) üzerinde ham klavye ok tuşlarını (`↑`, `↓`, `ENTER`, `ESC`, `q` ve sayı tuşları) yakalayan yerli TUI altyapısı geliştirildi.
+  - Seçili öğe üzerinde dinamik yeşil vurgu (`> ◉`), satır altı açıklama kutusu ve zengin durum rozetleri (`[AI:GEMINI]`, `(5 hisse | 55,000 TL)`) oluşturuldu.
+  - Non-interactive ve piped ortamlarda kesintisiz çalışmayı garanti eden akıllı fallback mekanizması eklendi.
+- **Yenilenen Başlangıç ve Portföy Seçim Ekranı (`init_profile`):**
+  - Kayıtlı tüm portföyler tek listede listelenerek her portföyün içerdiği hisse adedi ve nakit bütçesi anlık rozet olarak gösterildi.
+  - Portföyler arasında ok tuşlarıyla dolaşabilme, anında seçim yapabilme, tek tıkla "➕ Yeni Portföy Oluştur" veya en alttaki "⚙️ Uygulama & AI Ayarları" ekranına geçebilme sağlandı.
+- **Gelişmiş Alt Menülerin TUI Entegrasyonu:**
+  - **Uygulama & AI Ayarları (`manage_ai_settings`):** API anahtarı girme/güncelleme, haber önbelleğini temizleme ve test duygu analizi menüleri ok tuşlarıyla yönetilebilir hale getirildi.
+  - **Hisse Senedi Listesi Yönetimi (`manage_stock_list`):** Hisse ekleme, çıkarma ve şirket adı güncelleme adımları TUI menüsüne bağlandı.
+  - **Portföy Yönetimi (Sıfırla / Sil):** Tehlikeli silme işlemleri için interaktif Evet/Hayır (`interactive_confirm`) koruma katmanı eklendi.
+- **BIST Hafta Sonu & Canlı Piyasa Seansı Entegrasyonu (`signal_tracker.py`):**
+  - Hafta sonu (Cumartesi/Pazar) Borsa İstanbul'un kapalı olduğu saatleri tespit eden ve bir sonraki açılış gününü/tarihini hesaplayan `get_market_status()` motoru entegre edildi.
+  - Hafta sonu yapılan analizlerde üretilen AL sinyallerinin, performans takibini (5g/10g/20g) bozmaması adına resmi ilk işlem günü olan Pazartesi gününün tarihiyle (`effective_date`) kaydedilmesi sağlandı.
+  - Ana menü ve başlangıç ekranına canlı Piyasa Durum Rozeti (🟢 Canlı Seans / 🔴 Kapalı / 🟡 Seans Dışı) eklendi.
+- **Python 3.9 Geriye Dönük Uyumluluk:**
+  - Python 3.9 ortamlarında `dict | None` tür ipuçlarının fırlattığı `TypeError` hatası, ilgili dosyalara `from __future__ import annotations` direktifi eklenerek çözüldü.
+
+## 31. PİYASA SAĞLIK ENDEKSİ (0-100), DİNAMİK NAKİT SAVUNMASI (CASH DEFENSE) VE KADEMELİ BÜTÇE YÖNETİMİ [TAMAMLANDI]
+- **Piyasa Sağlık Endeksi Motoru (`calculate_market_health`):**
+  - BIST 100 ve takip listesindeki hisselerin genel durumunu 3 farklı eksende ölçen bütünsel puanlama motoru geliştirildi:
+    - **1. BIST100 Trend Gücü (Maks 40 Puan):** Fiyatın SMA20 (+10), SMA50 (+15) ve SMA200 (+15) üzerindeki konumu ve SMA50 eğimi (+5).
+    - **2. BIST100 Momentum & Osilatör (Maks 30 Puan):** RSI(14) >= 55 (+15 puan) ve MACD pozitif ivmesi (+15 puan).
+    - **3. Piyasa Genişliği / Market Breadth (Maks 30 Puan):** Takip listesindeki hisselerin yüzde kaçının SMA20 ve SMA50 üzerinde olduğu (%60+ -> +30 puan, %40-60 -> +16 puan, %40 altı -> 0 puan).
+- **3 Kademeli Piyasa Rejimi & Nakit Yönetimi:**
+  - **🟢 GÜÇLÜ BOĞA PİYASASI (Skor: 70-100):** %0 Nakit Savunması / %100 Hisse Yatırımı (Min Alım Skoru: 6/15, 3-5 hisselik sepet).
+  - **🟡 NÖTR / DALGALI PİYASA (Skor: 40-69):** %40 Nakit Koruma Kalkanı / %60 Hisse Yatırımı (Min Alım Skoru: 9/15 - Yalnızca süper fırsatlar, 1-2 hisselik sepet).
+  - **🔴 AYI / DÜŞÜŞ PİYASASI (Skor: 0-39):** **%100 NAKİTTE KALMA (Cash Preservation)**. Yeni hisse alımları tamamen durdurularak sermaye koruma altına alınır.
+- **Dinamik Bütçe Tahsisi (`optimizer.py: allocate_budget`):**
+  - `cash_reserve_pct` parametresi eklendi. Belirlenen nakit kalkanı (örn: %40) dokunulmaz rezerv olarak ayrılır; alımlar yalnızca yatırım bütçesi üzerinden optimize edilir.
+- **Portföy Koruma ve Hızlı Nakde Geçiş (`analyzer.py: evaluate_portfolio`):**
+  - Piyasa düşüş rejimine geçtiğinde (`BEAR`), portföydeki riskli veya zayıflayan pozisyonların satış puanı artırılarak erken kâr alma ve zararı kesme disiplini sağlandı.
+- **Kullanıcı Arayüzü & Piyasa Sağlık Paneli (`main.py`):**
+  - Menü 2 (Piyasa Analizi) çalıştırıldığında kullanıcıya güncel Piyasa Sağlık Skoru, Rejimi, BIST trend/momentum ayrıntıları ve tavsiye edilen nakit oranı renkli çerçeveli panel ile sunulur.
+  - Ayı piyasası tespit edildiğinde kullanıcıya açık uyarı verilerek %100 nakitte kalındığı bildirilir.
+## 32. KÂRI SÜRME (WIN-RUNNER), GÖRECELİ GÜÇ (ALPHA) VE YÜKSEK PERFORMANS OPTİMİZASYONU [TAMAMLANDI]
+- **Teşhis ve Problem Tespiti:**
+  - Önceki `evaluate_portfolio` satış mantığında, yükseliş trendindeki hisseler Bollinger üst bandına çarptığında, Stochastic veya RSI yüksek seviyelere ulaştığında ya da %15 kâra ulaşıldığında hemen `Sat Puanı` verilerek erken satıldığı ve kazanan hisselerin +%50 - +%150'lik büyük boğa rallilerinin kaçırıldığı tespit edildi.
+  - Ayrıca `calculate_market_health` rejim eşiklerinin aşırı katı olması sebebiyle normal BIST düzeltmelerinde gereksiz alım kilitlenmesi yaşandığı teşhis edildi.
+- **Kârı Sürme ve Trend Koruma Satış Motoru (`evaluate_portfolio`):**
+  - Sahte ve erken satış tetikleyicileri (Bollinger üst bant teması, trend içi yüksek osilatör değerleri, erken kâr alma) kaldırıldı.
+  - Satış kararları yalnızca **gerçek trend kırılımlarına** (Fiyat < SMA50, Death Cross, Fiyat < SMA200, Hacimli çöküş, Negatif RSI Uyumsuzluğu ve -%10 Stop-Loss) bağlandı.
+  - Bu sayede kazanan hisseler yükseliş trendi boyunca elinde tutularak bileşik getiri katlandı.
+- **Endeks Üstü Göreceli Güç ve İvme Puanlaması (`analyze_stocks`):**
+  - **Alpha Kriteri:** Hissenin son 20 gündeki getirisinin BIST100 getirisini aşması (+2 puan).
+  - **EMA9 >= EMA21 İvmesi:** Kısa vadeli yükseliş momentumu (+1 puan).
+  - **Ana Trend Doğrulaması:** Hissenin en az SMA50 üzerinde olması şartı getirilerek düşen bıçaklar elendi.
+- **Parametre Kalibrasyonu (`backtest.py`):**
+  - BIST oynaklığına ve uzun trendlere uyum sağlamak için İz Süren Stop eşiği `trailing_stop_pct = -18.0%` seviyesine optimize edildi.
+- **Tarihsel Simülasyon Sonuçları (2 Yıl):**
+  - **Başlangıç:** 10.000 TL
+  - **Bitiş:** **46.965,95 TL**
+  - **Toplam Net Getiri:** **+%369,66** (Eski +%57,58 seviyesinden **6,4 kat artış**).
+  - **Gerçekleşen Kâr:** 36.888,92 TL (140 alım / 135 satım).
+
+
+

@@ -10,6 +10,7 @@ API Anahtarı Yapılandırması (öncelik sırası):
 
 Önbellek: sentiment_cache.json (varsayılan TTL: 6 saat)
 """
+from __future__ import annotations
 
 import os
 import json

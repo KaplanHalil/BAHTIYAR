@@ -36,32 +36,43 @@ def _rank_candidate(pick):
     return (-score, rsi, price, str(pick.get('Hisse', '')))
 
 
-def allocate_budget(budget, recommendations, max_stocks=3):
+def allocate_budget(budget, recommendations, max_stocks=3, cash_reserve_pct=0.0):
     """
-    Bütçeyi en iyi hisse tavsiyelerine göre dağıtır.
+    Bütçeyi en iyi hisse tavsiyelerine ve piyasa nakit koruma (Cash Defense) oranına göre dağıtır.
 
     Args:
-        budget: Kullanılabilir bütçe (TL)
+        budget: Kullanılabilir toplam nakit bütçe (TL)
         recommendations: Analiz sonuçları listesi
         max_stocks: Maksimum kaç hisseye yatırım yapılacak
+        cash_reserve_pct: Savunma amacıyla nakitte korunacak oran (0.0 - 1.0)
+                          Örn: 0.40 -> Bütçenin %40'ı nakitte korunur, %60'ı yatırıma gider.
+                          1.00 -> %100 Nakitte kal.
 
     Returns:
         tuple: (portfolio, remaining_budget)
     """
     budget = _safe_float(budget)
+    cash_reserve_pct = max(0.0, min(1.0, _safe_float(cash_reserve_pct, 0.0)))
 
     try:
         max_stocks = int(max_stocks)
     except (TypeError, ValueError):
         max_stocks = 0
 
-    if budget <= 0 or max_stocks <= 0 or not recommendations:
-        return [], max(budget, 0)
+    if budget <= 0 or max_stocks <= 0 or not recommendations or cash_reserve_pct >= 1.0:
+        return [], max(budget, 0.0)
+
+    # Yatırıma ayrılan efektif bütçe ve dokunulmaz nakit rezervi
+    investable_budget = budget * (1.0 - cash_reserve_pct)
+    reserved_cash = budget * cash_reserve_pct
+
+    if investable_budget <= 0:
+        return [], max(budget, 0.0)
 
     candidates = []
     for pick in recommendations:
         price = _safe_float(pick.get('Fiyat'))
-        if price <= 0 or price > budget:
+        if price <= 0 or price > investable_budget:
             continue
 
         candidates.append({
@@ -78,26 +89,26 @@ def allocate_budget(budget, recommendations, max_stocks=3):
     selected = candidates[:max_stocks]
 
     total_score = sum(item['score'] for item in selected)
-    remaining_budget = budget
+    remaining_investable = investable_budget
     quantities = {item['pick']['Hisse']: 0 for item in selected}
 
-    # İlk geçiş: eşit dağıtım yerine teknik skora göre hedef bütçe ayır.
+    # İlk geçiş: teknik skora göre hedef bütçe ayır.
     for item in selected:
-        target_budget = budget * (item['score'] / total_score)
+        target_budget = investable_budget * (item['score'] / total_score)
         quantity = int(target_budget // item['price'])
-        if quantity <= 0 and item['price'] <= remaining_budget:
+        if quantity <= 0 and item['price'] <= remaining_investable:
             quantity = 1
 
         cost = quantity * item['price']
-        if cost <= remaining_budget:
+        if cost <= remaining_investable:
             quantities[item['pick']['Hisse']] += quantity
-            remaining_budget -= cost
+            remaining_investable -= cost
 
-    # İkinci geçiş: yuvarlamadan kalan nakdi en güçlü/ucuz adaylarda değerlendir.
+    # İkinci geçiş: yuvarlamadan kalan yatırılabilir nakdi en güçlü adaylarda değerlendir.
     while True:
         affordable = [
             item for item in selected
-            if item['price'] <= remaining_budget
+            if item['price'] <= remaining_investable
         ]
         if not affordable:
             break
@@ -105,9 +116,10 @@ def allocate_budget(budget, recommendations, max_stocks=3):
         affordable.sort(key=lambda item: (-item['score'], item['rsi'], item['price']))
         best = affordable[0]
         quantities[best['pick']['Hisse']] += 1
-        remaining_budget -= best['price']
+        remaining_investable -= best['price']
 
     portfolio = []
+    total_spent = 0.0
     for item in selected:
         pick = item['pick']
         quantity = quantities[pick['Hisse']]
@@ -115,7 +127,9 @@ def allocate_budget(budget, recommendations, max_stocks=3):
             continue
 
         cost = quantity * item['price']
+        total_spent += cost
         portfolio.append(_build_portfolio_item(pick, quantity, cost))
 
-    return portfolio, max(remaining_budget, 0)
+    remaining_total_budget = budget - total_spent
+    return portfolio, max(remaining_total_budget, 0.0)
 

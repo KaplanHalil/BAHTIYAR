@@ -10,7 +10,22 @@ def set_profile(name):
 
 def get_all_profiles():
     files = glob.glob("*_butce.json")
-    return [f.replace("_butce.json", "") for f in files]
+    return sorted([f.replace("_butce.json", "") for f in files])
+
+def get_profile_summary(name):
+    """Belirtilen profilin bütçe ve hisse sayısı özetini döndürür."""
+    b_file = f"{name}_butce.json"
+    if os.path.exists(b_file):
+        try:
+            with open(b_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                b = float(data.get("budget", 0.0))
+                p = data.get("portfolio", {})
+                return {"budget": b, "stock_count": len(p), "stocks": list(p.keys())}
+        except Exception:
+            pass
+    return {"budget": 0.0, "stock_count": 0, "stocks": []}
+
 
 def get_budget_file():
     return f"{CURRENT_PROFILE}_butce.json"

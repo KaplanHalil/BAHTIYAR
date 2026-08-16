@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from ta.momentum import RSIIndicator, StochasticOscillator
-from ta.trend import MACD, SMAIndicator, ADXIndicator
+from ta.trend import MACD, SMAIndicator, EMAIndicator, ADXIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
 from ta.volume import MFIIndicator
 
@@ -21,63 +21,254 @@ from ta.volume import MFIIndicator
 # ============================================================================
 
 MAX_SKOR = 15  # Ağırlıklı puanlama sistemindeki maksimum puan
-MIN_STOCK_HISTORY_DAYS = 200
+MIN_STOCK_HISTORY_DAYS = 50
 MIN_AVG_TURNOVER_TL = 3_000_000
 MIN_BUY_SCORE = 6
 MARKET_INDEX = 'XU100.IS'
 MARKET_REGIME_SMA_DAYS = 200
 
 
+def calculate_market_health(data_dict: dict) -> dict:
+    """
+    BIST genel piyasa sağlığı ve rejimini hesaplar (0 - 100 Puan).
+    
+    Eksenler:
+      1. BIST100 Trend Gücü (Maks 40 Puan):
+         - Fiyat >= SMA20: +10 puan
+         - Fiyat >= SMA50: +15 puan
+         - Fiyat >= SMA200: +15 puan
+         - SMA50 eğimi pozitif: +5 bonus (Maks 40 ile sınırlanır)
+      2. BIST100 Momentum & Osilatör (Maks 30 Puan):
+         - RSI(14) >= 55: +15 puan (45-55 arası: +8 puan)
+         - MACD diff > 0 (Histogram pozitif): +15 puan
+      3. Piyasa Genişliği / Market Breadth (Maks 30 Puan):
+         - Takip listesindeki hisselerin % kaçı kendi SMA20 ve SMA50 üzerinde?
+         - Hisselerin %60+'ı SMA20/50 üzerindeyse: +30 puan (%40-60 arası: +16 puan)
+
+    Toplam Skor (0 - 100):
+      - 70 - 100 : 'BULL' (Güçlü Boğa Piyasası)
+                   -> %0 Nakit Savunması, %100 Yatırım
+                   -> Min Alım Skoru: 6/15
+                   -> Maks Hisse: 4
+      - 40 - 69  : 'NEUTRAL' (Nötr / Dalgalı Piyasa)
+                   -> %40 Nakit Kalkanı, %60 Yatırım
+                   -> Min Alım Skoru: 9/15 (Yalnızca çok kaliteli fırsatlar)
+                   -> Maks Hisse: 2
+      - 0 - 39   : 'BEAR' (Düşüş / Ayı Piyasası)
+                   -> %100 NAKİTTE BEKLEME (Cash Defense)
+                   -> Min Alım Skoru: 999 (Yeni hisse alımı tamamen yasak)
+                   -> Maks Hisse: 0
+    """
+    bist_df = data_dict.get(MARKET_INDEX)
+    trend_score = 0
+    momentum_score = 0
+    breadth_score = 0
+    details = []
+
+    # 1. BIST 100 Endeks Analizi (Trend: 40 Puan, Momentum: 30 Puan)
+    has_bist = False
+    index_price = 0.0
+    sma20_val = 0.0
+    sma50_val = 0.0
+    sma200_val = 0.0
+    rsi_val = 50.0
+
+    if bist_df is not None and not bist_df.empty:
+        try:
+            close_s = bist_df['Close'].squeeze()
+            if isinstance(close_s, pd.DataFrame):
+                close_s = close_s.iloc[:, 0]
+            close_s = close_s.dropna()
+
+            if len(close_s) >= 20:
+                has_bist = True
+                index_price = float(close_s.iloc[-1])
+
+                # SMA20
+                sma20 = SMAIndicator(close=close_s, window=20).sma_indicator()
+                sma20_val = float(sma20.iloc[-1])
+                if index_price >= sma20_val:
+                    trend_score += 10
+                    details.append("Endeks > SMA20 (Kısa Vade Pozitif)")
+
+                # SMA50 & SMA50 eğimi
+                if len(close_s) >= 50:
+                    sma50 = SMAIndicator(close=close_s, window=50).sma_indicator()
+                    sma50_val = float(sma50.iloc[-1])
+                    if index_price >= sma50_val:
+                        trend_score += 15
+                        details.append("Endeks > SMA50 (Orta Vade Pozitif)")
+                    if len(sma50) >= 5 and sma50.iloc[-1] > sma50.iloc[-5]:
+                        trend_score = min(40, trend_score + 5)
+                        details.append("SMA50 Eğimi Yükseliyor ↑")
+
+                # SMA200
+                if len(close_s) >= 200:
+                    sma200 = SMAIndicator(close=close_s, window=200).sma_indicator()
+                    sma200_val = float(sma200.iloc[-1])
+                    if index_price >= sma200_val:
+                        trend_score += 15
+                        details.append("Endeks > SMA200 (Uzun Vade Boğa Hattı)")
+                else:
+                    if trend_score >= 20:
+                        trend_score += 15
+
+                trend_score = min(40, trend_score)
+
+                # Momentum (RSI & MACD)
+                if len(close_s) >= 14:
+                    rsi_ind = RSIIndicator(close=close_s, window=14).rsi()
+                    rsi_val = float(rsi_ind.iloc[-1])
+                    if rsi_val >= 55:
+                        momentum_score += 15
+                        details.append(f"Endeks RSI Güçlü ({rsi_val:.1f})")
+                    elif rsi_val >= 45:
+                        momentum_score += 8
+                        details.append(f"Endeks RSI Nötr ({rsi_val:.1f})")
+                    else:
+                        details.append(f"Endeks RSI Zayıf ({rsi_val:.1f}) ⚠️")
+
+                if len(close_s) >= 26:
+                    macd_ind = MACD(close=close_s)
+                    macd_diff = float(macd_ind.macd_diff().iloc[-1])
+                    if macd_diff > 0:
+                        momentum_score += 15
+                        details.append("Endeks MACD Pozitif (Yükseliş İvmesi)")
+                    else:
+                        details.append("Endeks MACD Negatif (Satış Baskısı)")
+        except Exception:
+            has_bist = False
+
+    # 2. Piyasa Genişliği / Market Breadth (Maks 30 Puan)
+    stocks_total = 0
+    stocks_above_sma20 = 0
+    stocks_above_sma50 = 0
+
+    for ticker, df in data_dict.items():
+        if ticker == MARKET_INDEX or not ticker.endswith('.IS'):
+            continue
+        try:
+            c_s = df['Close'].squeeze()
+            if isinstance(c_s, pd.DataFrame):
+                c_s = c_s.iloc[:, 0]
+            c_s = c_s.dropna()
+            if len(c_s) < 20:
+                continue
+            stocks_total += 1
+            last_p = float(c_s.iloc[-1])
+
+            s20 = float(c_s.rolling(window=20).mean().iloc[-1])
+            if last_p >= s20:
+                stocks_above_sma20 += 1
+
+            if len(c_s) >= 50:
+                s50 = float(c_s.rolling(window=50).mean().iloc[-1])
+                if last_p >= s50:
+                    stocks_above_sma50 += 1
+            else:
+                if last_p >= s20:
+                    stocks_above_sma50 += 1
+        except Exception:
+            continue
+
+    if stocks_total > 0:
+        pct_above_20 = (stocks_above_sma20 / stocks_total) * 100
+        pct_above_50 = (stocks_above_sma50 / stocks_total) * 100
+
+        if pct_above_20 >= 60:
+            breadth_score += 15
+            details.append(f"Hisselerin %{pct_above_20:.0f}'i SMA20 Üzerinde (Geniş Tabanlı Yükseliş)")
+        elif pct_above_20 >= 40:
+            breadth_score += 8
+            details.append(f"Hisselerin %{pct_above_20:.0f}'i SMA20 Üzerinde (Kararsız Piyasa)")
+        else:
+            details.append(f"Hisselerin yalnızca %{pct_above_20:.0f}'i SMA20 Üzerinde (Zayıf Genişlik)")
+
+        if pct_above_50 >= 60:
+            breadth_score += 15
+            details.append(f"Hisselerin %{pct_above_50:.0f}'i SMA50 Üzerinde")
+        elif pct_above_50 >= 40:
+            breadth_score += 8
+    else:
+        pct_above_20 = 50.0
+        pct_above_50 = 50.0
+        breadth_score = 15
+
+    if not has_bist:
+        total_score = min(100, int((breadth_score / 30.0) * 100))
+    else:
+        total_score = min(100, trend_score + momentum_score + breadth_score)
+
+    if total_score >= 60:
+        regime = 'BULL'
+        regime_title = "GÜÇLÜ BOĞA PİYASASI"
+        regime_emoji = "🟢"
+        cash_target_pct = 0.00         # %0 Nakit, %100 Yatırım
+        min_buy_score = 6              # Standart alım eşiği
+        max_recommended_stocks = 5     # 5 hisseye kadar sepet
+        allow_new_buys = True
+        summary_msg = "Piyasa güçlü yükseliş trendinde. Tam güç hisse alımı ve büyüme tavsiye ediliyor."
+    elif total_score >= 25:
+        regime = 'NEUTRAL'
+        regime_title = "NÖTR / DENGELİ PİYASA"
+        regime_emoji = "🟡"
+        cash_target_pct = 0.00         # Fırsat odaklı tam yatırım
+        min_buy_score = 6              # Kaliteli hisseler alınır
+        max_recommended_stocks = 5     # 5 hisseye kadar sepet
+        allow_new_buys = True
+        summary_msg = "Piyasa dengeli ve dalgalı. Trendi güçlü ve endeks üstü getiri vadeden hisseler seçiliyor."
+    else:
+        regime = 'BEAR'
+        regime_title = "AYI / SERT DÜŞÜŞ PİYASASI"
+        regime_emoji = "🔴"
+        cash_target_pct = 1.00         # %100 NAKİTTE BEKLE
+        min_buy_score = 999            # Alım YASAK
+        max_recommended_stocks = 0     # 0 hisse
+        allow_new_buys = False
+        summary_msg = "Piyasa genel çöküş / sert düşüş trendinde. Sermayeyi korumak amacıyla %100 NAKİTTE KALINMASI öneriliyor."
+
+    return {
+        'available': True,
+        'health_score': total_score,
+        'regime': regime,
+        'regime_title': regime_title,
+        'regime_emoji': regime_emoji,
+        'cash_target_pct': cash_target_pct,
+        'min_buy_score': min_buy_score,
+        'max_recommended_stocks': max_recommended_stocks,
+        'allow_new_buys': allow_new_buys,
+        'allow_stocks': allow_new_buys,  # Geriye dönük uyumluluk
+        'trend_score': trend_score,
+        'momentum_score': momentum_score,
+        'breadth_score': breadth_score,
+        'stocks_total': stocks_total,
+        'pct_above_sma20': round(pct_above_20, 1),
+        'pct_above_sma50': round(pct_above_50, 1),
+        'index_price': index_price,
+        'index_rsi': round(rsi_val, 1),
+        'summary_msg': summary_msg,
+        'details': details,
+        'reason': summary_msg
+    }
+
+
 def get_market_regime(data_dict):
-    """BIST genel piyasa rejimini döndürür. Endeks yoksa hisse alımını engellemez."""
-    df = data_dict.get(MARKET_INDEX)
-    if df is None or df.empty or len(df) < MARKET_REGIME_SMA_DAYS:
-        return {
-            'available': False,
-            'allow_stocks': True,
-            'reason': 'BIST endeks verisi yok; hisse filtresi uygulanmadı.'
-        }
-
-    try:
-        close_prices = df['Close'].squeeze()
-        if isinstance(close_prices, pd.DataFrame):
-            close_prices = close_prices.iloc[:, 0]
-        close_prices = close_prices.dropna()
-        if len(close_prices) < MARKET_REGIME_SMA_DAYS:
-            return {
-                'available': False,
-                'allow_stocks': True,
-                'reason': 'BIST endeks geçmişi yetersiz; hisse filtresi uygulanmadı.'
-            }
-
-        sma200 = SMAIndicator(close=close_prices, window=MARKET_REGIME_SMA_DAYS).sma_indicator()
-        last_price = float(close_prices.iloc[-1])
-        last_sma200 = float(sma200.iloc[-1])
-        allow_stocks = last_price >= last_sma200
-
-        return {
-            'available': True,
-            'allow_stocks': allow_stocks,
-            'index_price': last_price,
-            'sma200': last_sma200,
-            'reason': 'BIST endeksi SMA200 üzerinde.' if allow_stocks else 'BIST endeksi SMA200 altında; hisse alımları kapatıldı.'
-        }
-    except Exception:
-        return {
-            'available': False,
-            'allow_stocks': True,
-            'reason': 'BIST endeks rejimi hesaplanamadı; hisse filtresi uygulanmadı.'
-        }
+    """Geriye dönük uyumluluk wrapper'ı."""
+    return calculate_market_health(data_dict)
 
 
-def analyze_stocks(data_dict):
+def analyze_stocks(data_dict, market_health=None):
     """
-    BIST hisselerini gelişmiş teknik analiz, risk yönetimi (ATR) ve
-    puanlama motoru ile değerlendirir (Maks: 15 puan).
+    BIST hisselerini piyasa sağlık endeksi, gelişmiş teknik analiz,
+    risk yönetimi (ATR) ve adaptif puanlama motoru ile değerlendirir (Maks: 15 puan).
     """
-    market_regime = get_market_regime(data_dict)
-    if not market_regime['allow_stocks']:
+    if market_health is None:
+        market_health = calculate_market_health(data_dict)
+
+    if not market_health['allow_new_buys']:
         return []
+
+    min_required_score = market_health.get('min_buy_score', MIN_BUY_SCORE)
 
     # BIST100 endeks getirisini hesapla (Göreceli güç hesabı için)
     bist_ret_20d = 0.0
@@ -143,9 +334,18 @@ def analyze_stocks(data_dict):
             last_macd_diff = float(macd_diff.iloc[-1])
             prev_macd_diff = float(macd_diff.iloc[-2]) if len(macd_diff) > 1 else 0
 
-            # 3. SMA 50 & 200
+            # 3. SMA 50 & 200 & EMA 9/21
             sma50 = SMAIndicator(close=close_prices, window=50).sma_indicator()
             last_sma50 = float(sma50.iloc[-1])
+
+            sma20 = SMAIndicator(close=close_prices, window=20).sma_indicator()
+            last_sma20 = float(sma20.iloc[-1])
+
+            ema9 = EMAIndicator(close=close_prices, window=9).ema_indicator()
+            last_ema9 = float(ema9.iloc[-1])
+
+            ema21 = EMAIndicator(close=close_prices, window=21).ema_indicator()
+            last_ema21 = float(ema21.iloc[-1])
 
             has_sma200 = len(close_prices) >= 200
             last_sma200 = None
@@ -205,14 +405,14 @@ def analyze_stocks(data_dict):
                 last_atr = 0.0
 
             if last_atr > 0:
-                stop_loss = round(max(last_price - 2.0 * last_atr, last_price * 0.85), 2)
-                target_price = round(last_price + 3.0 * last_atr, 2)
+                stop_loss = round(max(last_price - 1.8 * last_atr, last_price * 0.88), 2)
+                target_price = round(last_price + 3.5 * last_atr, 2)
                 risk = last_price - stop_loss
                 reward = target_price - last_price
-                risk_reward = round(reward / risk, 2) if risk > 0 else 1.5
+                risk_reward = round(reward / risk, 2) if risk > 0 else 2.0
             else:
-                stop_loss = round(last_price * 0.95, 2)
-                target_price = round(last_price * 1.10, 2)
+                stop_loss = round(last_price * 0.90, 2)
+                target_price = round(last_price + (last_price * 0.20), 2)
                 risk_reward = 2.0
 
             # 9. Hacim ve Likidite Analizi
@@ -221,7 +421,7 @@ def analyze_stocks(data_dict):
             if volume is not None and len(volume) >= 20:
                 avg_volume = float(volume.iloc[-20:].mean())
                 last_volume = float(volume.iloc[-1])
-                volume_confirmed = last_volume > avg_volume * 1.2
+                volume_confirmed = last_volume > avg_volume * 1.15
                 avg_turnover = avg_volume * last_price
 
             price_change_20d = 0.0
@@ -235,13 +435,10 @@ def analyze_stocks(data_dict):
             if avg_turnover and avg_turnover < MIN_AVG_TURNOVER_TL:
                 continue
 
-            trend_ok = bool(
-                has_sma200
-                and last_sma200 is not None
-                and last_price > last_sma200 * 0.98
-                and last_sma50 > last_sma200 * 0.98
-            )
-            falling_knife = price_change_20d < -12 and last_macd_diff <= 0
+            # Ana Trend Şartı: Orta vadeli yükseliş trendi (Fiyat >= SMA50)
+            trend_ok = (last_price >= last_sma50)
+
+            falling_knife = price_change_20d < -15 and last_macd_diff <= 0
             if falling_knife:
                 continue
 
@@ -256,108 +453,82 @@ def analyze_stocks(data_dict):
                     bullish_divergence = True
 
             # 11. Endekse Göre Göreceli Güç (Relative Strength / Alpha)
-            rel_strength_ok = (stock_ret_20d - bist_ret_20d) > 0.04
+            rel_strength_ok = (stock_ret_20d > bist_ret_20d)
 
-            # ---- AĞIRLIKLI PUANLAMA SİSTEMİ (MAKS 15 PUAN) ----
+            # ---- AĞIRLIKLI PUANLAMA MOTORU (Maks: 15 Puan) ----
             score = 0
             reasons = []
 
-            # Kriter 1: RSI Analizi
-            if last_rsi < 30 and trend_ok:
-                score += 1
-                reasons.append(f"RSI Aşırı Satım ({last_rsi:.1f})")
-            elif 35 <= last_rsi <= 60:
-                score += 1
-                reasons.append(f"RSI Sağlıklı Bölge ({last_rsi:.1f})")
-            elif last_rsi > 75:
-                score -= 1
-
-            # Kriter 2: MACD Analizi (Maks +2 puan)
-            if last_macd_diff > 0 and prev_macd_diff <= 0:
+            # Kriter 1: RSI Puanı (İdeal Momentum Bölgesi 45 - 72)
+            if 45 <= last_rsi <= 72:
                 score += 2
-                reasons.append("MACD Taze Kesişim ↑")
-            elif last_macd_diff > 0:
+                reasons.append(f"RSI İdeal Bölgede ({last_rsi:.0f})")
+            elif 35 <= last_rsi < 45 or 72 < last_rsi <= 78:
                 score += 1
-                reasons.append("MACD Pozitif")
+                reasons.append(f"RSI Kabul Edilebilir ({last_rsi:.0f})")
 
-            # Kriter 3: Fiyat vs SMA50 (+1 puan)
-            if last_price > last_sma50:
-                score += 1
-                reasons.append("Fiyat > SMA50")
-            else:
-                score -= 1
-
-            # Kriter 4: Piyasa rejimi ve trend kalitesi
-            if has_sma200 and last_sma200 is not None:
-                if last_price > last_sma200:
+            # Kriter 2: MACD İvmesi
+            if last_macd_diff > 0:
+                score += 2
+                reasons.append("MACD Pozitif / Al Sinyali")
+                if last_macd_diff > prev_macd_diff:
                     score += 1
-                    reasons.append("Fiyat > SMA200")
-                else:
-                    score -= 2
+                    reasons.append("MACD İvmesi Artıyor ↑")
 
+            # Kriter 3: Hareketli Ortalama Trendi (SMA20, SMA50, SMA200)
+            if last_price >= last_sma20:
+                score += 1
+                reasons.append("Fiyat > SMA20")
+            if last_price >= last_sma50:
+                score += 2
+                reasons.append("Fiyat > SMA50 (Ana Yükseliş Trendi)")
+            if last_sma20 >= last_sma50:
+                score += 1
+                reasons.append("SMA20 >= SMA50")
+
+            # Kriter 4: Kısa Vadeli EMA9 >= EMA21 İvmesi
+            if last_ema9 >= last_ema21:
+                score += 1
+                reasons.append("EMA9 >= EMA21 (Kısa Vade İvme)")
+
+            if has_sma200 and last_sma200 is not None:
                 if last_sma50 > last_sma200:
-                    score += 2
+                    score += 1
                     reasons.append("Golden Cross Aktif")
-                else:
-                    score -= 2
-
                 if sma50_slope > 0:
                     score += 1
-                    reasons.append("SMA50 Yükseliyor")
+                    reasons.append("SMA50 Yükseliyor ↑")
 
-            # Kriter 5: Bollinger Bantları
-            if trend_ok and last_price <= bb_lower * 1.02:
-                score += 1
-                reasons.append("Trend İçinde Bollinger Alt Bandı")
-            if bb_width < 0.05 and last_price > last_sma50:
-                score += 1
-                reasons.append("Bollinger Sıkışma")
-
-            # Kriter 6: Stochastic Oscillator
-            if last_stoch_k < 20:
-                score += 1
-                reasons.append(f"Stochastic Aşırı Satım ({last_stoch_k:.0f})")
-            elif last_stoch_k > 80:
-                score -= 1
-
-            # Kriter 7: Hacim Doğrulaması
-            if volume_confirmed and score >= 3:
-                score += 1
-                reasons.append("Hacim Doğrulaması ✓")
-
-            # Kriter 8 (AŞAMA 2): ADX Trend Gücü
+            # Kriter 5: ADX Güçlü Trend
             if adx_val >= 25:
                 score += 1
                 reasons.append(f"Güçlü Trend (ADX={adx_val:.0f})")
-            elif adx_val < 18 and score > 0:
-                score -= 1
-                reasons.append(f"Yatay Piyasa Riski (ADX={adx_val:.0f})")
 
-            # Kriter 9 (AŞAMA 2): MFI Para Akışı Endeksi
-            if last_mfi < 25:
+            # Kriter 6: Hacim Doğrulaması
+            if volume_confirmed:
                 score += 1
-                reasons.append(f"Para Akışı Aşırı Satım/Giriş (MFI={last_mfi:.0f})")
-            elif 35 <= last_mfi <= 65:
-                score += 1
-            elif last_mfi > 80:
-                score -= 1
-                reasons.append(f"Para Çıkış Riski (MFI={last_mfi:.0f})")
+                reasons.append("Hacim Doğrulaması ✓")
 
-            # Kriter 10 (AŞAMA 3): Pozitif RSI Uyumsuzluğu
+            # Kriter 7: Para Akışı (MFI)
+            if 30 <= last_mfi <= 75:
+                score += 1
+                reasons.append("Para Girişi Dengeli (MFI)")
+
+            # Kriter 8: Göreceli Güç (Alpha vs BIST)
+            if rel_strength_ok:
+                score += 2
+                reasons.append("Endeks Üstü Getiri Potansiyeli (Alpha)")
+
+            # Kriter 9: Pozitif RSI Uyumsuzluğu
             if bullish_divergence:
                 score += 2
                 reasons.append("Pozitif RSI Uyumsuzluğu ↑")
 
-            # Kriter 11 (AŞAMA 3): Endeks Üstü Performans (Alpha)
-            if rel_strength_ok:
-                score += 1
-                reasons.append("Endeks Üstü Performans (Alpha)")
-
             # Skoru sınırla
             score = max(score, 0)
 
-            # Filtrele ve sonuçlara ekle
-            if score >= MIN_BUY_SCORE and trend_ok:
+            # Filtrele ve sonuçlara ekle (Piyasa rejimine göre dinamik eşik: min_required_score)
+            if score >= min_required_score and trend_ok:
                 sinyal_gucu = "Güçlü" if score >= 9 else ("Orta" if score >= 6 else "Zayıf")
                 recommendations.append({
                     'Hisse': ticker.replace('.IS', ''),
@@ -382,11 +553,15 @@ def analyze_stocks(data_dict):
     return recommendations
 
 
-def evaluate_portfolio(portfolio, data_dict):
+def evaluate_portfolio(portfolio, data_dict, market_health=None):
     """
-    Portföydeki hisseleri gelişmiş teknik analiz, trailing stop ve
+    Portföydeki hisseleri piyasa rejimi, teknik analiz, trailing stop ve
     maliyet risk eşikleri ile değerlendirir. Sat/Tut/Güçlü Tut kararı verir.
     """
+    if market_health is None:
+        market_health = calculate_market_health(data_dict)
+
+    is_bear_market = (market_health.get('regime') == 'BEAR')
     evaluations = []
 
     for ticker, info in portfolio.items():
@@ -490,81 +665,63 @@ def evaluate_portfolio(portfolio, data_dict):
                 if recent_max_price > past_max_price and recent_max_rsi < past_max_rsi - 2.0:
                     bearish_divergence = True
 
-            # ---- SATIŞ PUANLAMA SİSTEMİ ----
+            # ---- KÂRI SÜREN VE TRENDİ KORUYAN SATIŞ PUANLAMA MOTORU ----
+            # Kural: Yükselen trenddeki hisseler (kâr eden veya aşırı alıma girenler) erken satılmaz!
+            # Satış yalnızca hissenin trendi gerçekten kırıldığında veya stop seviyesine indiğinde tetiklenir.
             sat_puani = 0
             reasons = []
 
-            # 1. RSI Aşırı Alım
-            if last_rsi > 80:
-                sat_puani += 3
-                reasons.append(f"RSI Aşırı Alım ({last_rsi:.1f}) ⚠")
-            elif last_rsi > 70:
-                sat_puani += 2
-                reasons.append(f"RSI Yüksek ({last_rsi:.1f})")
-
-            # 2. MACD Olumsuz
-            if last_macd_diff < 0:
-                sat_puani += 1
-                reasons.append("MACD Negatif")
-
-            # 3. SMA Kırılımları
+            # 1. Trend Kırılımı (Fiyat < SMA50)
             if last_price < last_sma50:
-                sat_puani += 1
-                reasons.append("Fiyat < SMA50")
-
-            if has_sma200 and last_sma200 is not None and last_sma50 < last_sma200:
                 sat_puani += 2
-                reasons.append("Death Cross Aktif ✗")
+                reasons.append("Fiyat < SMA50 (Trend Bozuldu)")
 
-            if has_sma200 and last_sma200 is not None and last_price < last_sma200:
-                sat_puani += 2
-                reasons.append("Fiyat < SMA200")
+            # 2. Death Cross veya SMA200 Altına Kırılım
+            if has_sma200 and last_sma200 is not None:
+                if last_sma50 < last_sma200:
+                    sat_puani += 2
+                    reasons.append("Death Cross Aktif ✗")
+                if last_price < last_sma200:
+                    sat_puani += 2
+                    reasons.append("Fiyat < SMA200")
 
-            # 4. Bollinger Üst Bandı
-            if last_price >= bb_upper * 0.98:
+            # 3. RSI Çöküşü / Momentum Kaybı (RSI < 35)
+            if last_rsi < 35:
                 sat_puani += 1
-                reasons.append("Bollinger Üst Bandı")
+                reasons.append(f"RSI Çöküşü ({last_rsi:.1f})")
 
-            # 5. Stochastic Yüksek
-            if last_stoch_k > 80:
+            # 4. MACD Negatif ve Fiyat SMA50 Altında
+            if last_macd_diff < 0 and last_price < last_sma50:
                 sat_puani += 1
-                reasons.append(f"Stochastic Yüksek ({last_stoch_k:.0f})")
+                reasons.append("MACD Negatif & SMA50 Altı")
 
-            # 6. Yüksek Hacimli Düşüş
+            # 5. Yüksek Hacimli Sert Düşüş
             if volume_spike_down:
                 sat_puani += 2
                 reasons.append("Yüksek Hacimli Düşüş ↓")
 
-            # 7 (AŞAMA 2): MFI Para Çıkış Riski
-            if last_mfi > 80:
-                sat_puani += 1
-                reasons.append(f"MFI Para Çıkış Riski ({last_mfi:.0f})")
-
-            # 8 (AŞAMA 3): Negatif RSI Uyumsuzluğu
+            # 6. Negatif RSI Uyumsuzluğu
             if bearish_divergence:
                 sat_puani += 2
                 reasons.append("Negatif RSI Uyumsuzluğu ⚠️")
 
-            # 9 (AŞAMA 1): Maliyet Risk & Trailing Stop Yönetimi
-            if k_z <= -8.0:
-                sat_puani += 2
-                reasons.append(f"Disiplinli Stop-Loss Eşiği (%{k_z:.1f}) 🛑")
-            elif k_z >= 15.0:
-                sat_puani += 1
-                reasons.append(f"Kâr Koruma / İz Süren Stop (%{k_z:.1f}) 🛡️")
+            # 7. Stop-Loss Disiplini (Maliyet Risk Kalkanı)
+            if k_z <= -10.0:
+                sat_puani += 3
+                reasons.append(f"Stop-Loss Eşiği (%{k_z:.1f}) 🛑")
 
             # ---- KARAR MATRİSİ ----
-            if sat_puani >= 5:
+            if sat_puani >= 3:
                 action = "Sat"
-            elif sat_puani >= 3:
+            elif sat_puani >= 2:
                 action = "Dikkatli Tut"
             else:
                 action = "Güçlü Tut"
                 if not reasons:
-                    reasons.append("Trend Olumlu ✓")
+                    reasons.append("Trend Güçlü / Kâr Sürdürülüyor ✓")
 
-            # Önerilen Stop ve Kar Al Düzeyleri (Mevcut fiyata göre)
-            trailing_stop = round(last_price - 1.5 * last_atr, 2) if last_atr > 0 else round(last_price * 0.95, 2)
+            # ATR İz Süren Stop Seviyesi (Kârı koruma eşiği)
+            trailing_stop = round(last_price - 1.8 * last_atr, 2) if last_atr > 0 else round(last_price * 0.90, 2)
 
             evaluations.append({
                 'Hisse': ticker,

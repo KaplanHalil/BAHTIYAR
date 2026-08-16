@@ -13,6 +13,8 @@ anlayabiliriz.
 Dosya: signal_log.json
 """
 
+from __future__ import annotations
+
 import json
 import yfinance as yf
 from datetime import datetime, timedelta, date
@@ -20,6 +22,70 @@ from pathlib import Path
 
 SIGNAL_LOG_FILE = "signal_log.json"
 DEFAULT_EVAL_DAYS = [5, 10, 20]   # sinyal sonrası kaç günde ölçüm yapılır
+
+
+def get_market_status(dt: datetime = None) -> dict:
+    """
+    BIST piyasa durumunu, seans saatlerini ve geçerli işlem tarihini döndürür.
+    
+    Hafta sonu: Cumartesi (5), Pazar (6) -> Kapalı, geçerli işlem günü bir sonraki Pazartesi.
+    Hafta içi: Pazartesi(0)-Cuma(4):
+      - 10:00 - 18:15: Seans Açık
+      - 18:15+: Günlük Seans Kapandı
+      - <10:00: Seans Öncesi
+    """
+    if dt is None:
+        dt = datetime.now()
+
+    weekday = dt.weekday()  # 0: Pazartesi, ..., 4: Cuma, 5: Cumartesi, 6: Pazar
+    hour = dt.hour
+    minute = dt.minute
+    time_val = hour + minute / 60.0
+
+    is_weekend = weekday in (5, 6)
+
+    if is_weekend:
+        days_to_monday = (7 - weekday) % 7
+        if days_to_monday == 0:
+            days_to_monday = 1
+        next_trading_date = dt.date() + timedelta(days=days_to_monday)
+        status = 'haftasonu'
+        is_open = False
+        desc = "Kapalı (Hafta Sonu)"
+        next_session_desc = f"Pazartesi ({next_trading_date.strftime('%d.%m.%Y')}) 10:00"
+    else:
+        if 10.0 <= time_val <= 18.25:
+            status = 'acik'
+            is_open = True
+            desc = "Açık (Canlı Seans)"
+            next_trading_date = dt.date()
+            next_session_desc = "Şu an aktif"
+        elif time_val < 10.0:
+            status = 'seans_oncesi'
+            is_open = False
+            desc = "Kapalı (Seans Öncesi)"
+            next_trading_date = dt.date()
+            next_session_desc = f"Bugün ({dt.date().strftime('%d.%m.%Y')}) 10:00"
+        else:
+            status = 'seans_sonrasi'
+            is_open = False
+            desc = "Kapalı (Seans Kapanışı)"
+            if weekday == 4:  # Cuma akşamı
+                next_trading_date = dt.date() + timedelta(days=3)
+                next_session_desc = f"Pazartesi ({next_trading_date.strftime('%d.%m.%Y')}) 10:00"
+            else:
+                next_trading_date = dt.date() + timedelta(days=1)
+                next_session_desc = f"Yarın ({next_trading_date.strftime('%d.%m.%Y')}) 10:00"
+
+    return {
+        'status': status,
+        'is_open': is_open,
+        'is_weekend': is_weekend,
+        'desc': desc,
+        'next_session_desc': next_session_desc,
+        'effective_date': next_trading_date
+    }
+
 
 
 # ═══════════════════════════════════════════════════════════════════ #
@@ -51,23 +117,27 @@ def _save_log(signals: list[dict]):
 def record_signals(recommendations: list[dict], sentiment_results: dict = None):
     """
     Analiz sonuçlarındaki AL tavsiyelerini sinyal loğuna kaydeder.
+    Hafta sonu üretilen sinyaller otomatik olarak bir sonraki Pazartesi (işlem günü)
+    tarihiyle ilişkilendirilir.
 
     Args:
         recommendations : analyze_stocks() çıktısı (teknik tavsiyeler)
         sentiment_results: {'THYAO': {skor, etiket, ...}, ...}  (opsiyonel)
     """
     signals = _load_log()
-    today   = datetime.now().date().isoformat()
-    new_count = 0
+    market_info = get_market_status()
+    target_date = market_info['effective_date'].isoformat()
+    now_iso     = datetime.now().isoformat()
+    new_count   = 0
 
     for r in recommendations:
         ticker = r.get('Hisse', '')
         if not ticker:
             continue
 
-        # Bugün aynı ticker için zaten kayıt var mı?
+        # Aynı işlem tarihi ve ticker için zaten kayıt var mı?
         already = any(
-            s['ticker'] == ticker and s['tarih'] == today
+            s['ticker'] == ticker and s['tarih'] == target_date
             for s in signals
         )
         if already:
@@ -79,18 +149,20 @@ def record_signals(recommendations: list[dict], sentiment_results: dict = None):
         efektif_skor = teknik_skor + ai_skor
 
         sinyal = {
-            'id'            : f"{ticker}_{today}",
-            'tarih'         : today,
-            'ticker'        : ticker,
-            'giris_fiyati'  : r.get('Fiyat', 0),
-            'teknik_skor'   : teknik_skor,
-            'teknik_sinyal' : r.get('Sinyal', ''),
-            'ai_skor'       : ai_skor,
-            'ai_etiket'     : sent.get('etiket', 'NOTR') if sent else 'YOK',
-            'ai_ozet'       : sent.get('ozet', '')[:60] if sent else '',
-            'efektif_skor'  : efektif_skor,
+            'id'             : f"{ticker}_{target_date}",
+            'tarih'          : target_date,
+            'ticker'         : ticker,
+            'giris_fiyati'   : r.get('Fiyat', 0),
+            'teknik_skor'    : teknik_skor,
+            'teknik_sinyal'  : r.get('Sinyal', ''),
+            'ai_skor'        : ai_skor,
+            'ai_etiket'      : sent.get('etiket', 'NOTR') if sent else 'YOK',
+            'ai_ozet'        : sent.get('ozet', '')[:60] if sent else '',
+            'efektif_skor'   : efektif_skor,
+            'kayit_zamani'   : now_iso,
+            'haftasonu_kaydi': market_info['is_weekend'],
             # Ölçüm sonuçları (sonradan doldurulur)
-            'sonuclar'      : {}   # {'5g': {'fiyat': X, 'getiri_pct': Y}, ...}
+            'sonuclar'       : {}   # {'5g': {'fiyat': X, 'getiri_pct': Y}, ...}
         }
         signals.append(sinyal)
         new_count += 1
