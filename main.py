@@ -1,5 +1,7 @@
 import sys
 import os
+import time
+from datetime import datetime
 import yfinance as yf
 
 from budget_manager import (
@@ -8,9 +10,9 @@ from budget_manager import (
     get_profile_summary
 )
 from data_fetcher import fetch_data
-from analyzer import analyze_stocks, evaluate_portfolio, enrich_with_sentiment, calculate_market_health
+from analyzer import analyze_stocks, evaluate_portfolio, enrich_with_sentiment, calculate_market_health, get_trading_mode, set_trading_mode
 from optimizer import allocate_budget
-from logger import log_transaction, set_logger_profile
+from logger import log_transaction, set_logger_profile, get_recently_sold_stocks
 from stock_list_manager import (
     get_stock_list_with_names, add_stock, remove_stock,
     update_stock_name, stock_count
@@ -22,7 +24,10 @@ from news_analyzer import (
     ETIKET_SEMBOL
 )
 from signal_tracker import record_signals, print_performance_report, get_market_status
-from ui_menu import interactive_menu, interactive_input, interactive_confirm, clear_screen, c
+from ui_menu import (
+    interactive_menu, interactive_input, interactive_confirm,
+    clear_screen, c, KEY_ESC, KEY_ENTER, get_key_timeout
+)
 from shutil import get_terminal_size
 
 try:
@@ -181,12 +186,10 @@ def manage_stock_list():
         if stocks:
             header += f"  {'No':<4} {'Kod':<8} {'Şirket Adı'}\n"
             header += "  " + "-" * 65 + "\n"
-            for i, s in enumerate(stocks[:15], 1):
+            for i, s in enumerate(stocks, 1):
                 kod_str = _colored(f"{s['kod']:<8}", 'green', True)
                 ad_str  = s['ad'] if s['ad'] else _colored("(Ad girilmemiş)", 'yellow')
                 header += f"  {i:<4} {kod_str} {ad_str}\n"
-            if len(stocks) > 15:
-                header += f"  ... ve {len(stocks) - 15} hisse daha\n"
 
         stock_menu_opts = [
             {'label': "➕ Listeye Yeni Hisse Ekle", 'value': '1', 'desc': "Analiz havuzuna yeni hisse kodu tanımlayın"},
@@ -260,6 +263,190 @@ def manage_stock_list():
                 elif sonuc == "not_found":
                     print(_colored(f"\n  [UYARI] [{kod}] listede bulunamadı.", 'yellow', True))
                 input(_colored("\nDevam etmek için ENTER'a basın...", 'cyan'))
+
+
+def run_live_portfolio_monitor(active_profile: str):
+    """
+    Canlı Portföy Takip Ekranı — Portföydeki hisselerin canlı fiyatlarını,
+    günlük değişimlerini ve anlık K/Z durumlarını otomatik yenilemeyle gösterir.
+    """
+    refresh_interval = 10  # Otomatik yenileme süresi (saniye)
+
+    while True:
+        portfolio = load_portfolio()
+        budget = load_budget()
+        m_status = get_market_status()
+
+        if not portfolio:
+            clear_screen()
+            print(_colored("=" * 80, 'cyan'))
+            print(_colored("  📡 CANLI PORTFÖY VE KÂR/ZARAR TAKİP EKRANI", 'cyan', True))
+            print(_colored("=" * 80, 'cyan'))
+            print(_colored(f"\n  [!] [{active_profile.upper()}] portföyünüzde henüz hisse bulunmuyor.", 'yellow', True))
+            print(_colored("      Ana menüden hisse alımı yapabilir veya manuel hisse ekleyebilirsiniz.\n", 'cyan'))
+            input(_colored("  Devam etmek için ENTER'a basın...", 'cyan'))
+            break
+
+        # 1. Hisseleri canlı indirme mesajı
+        clear_screen()
+        print(_colored("=" * 80, 'cyan'))
+        print(_colored(f"  📡 CANLI PORTFÖY VE KÂR/ZARAR TAKİP EKRANI — Portföy: [{active_profile.upper()}]", 'cyan', True))
+        print(_colored("=" * 80, 'cyan'))
+        print(_colored(f"\n  🔄 Canlı borsa verileri çekiliyor ({len(portfolio)} hisse)... Lütfen bekleyin...\n", 'cyan', True))
+
+        tickers = list(portfolio.keys())
+        bist_tickers = [t if t.endswith('.IS') else f"{t}.IS" for t in tickers]
+
+        raw_data = None
+        try:
+            raw_data = yf.download(
+                tickers=bist_tickers,
+                period="5d",
+                group_by="ticker",
+                auto_adjust=False,
+                progress=False
+            )
+        except Exception:
+            raw_data = None
+
+        now_str = datetime.now().strftime("%H:%M:%S")
+
+        # 2. Verileri işleme ve tablo hazırlama
+        rows = []
+        total_stock_value = 0.0
+        total_maliyet = 0.0
+
+        for ticker in tickers:
+            lot = portfolio[ticker]['lot']
+            maliyet = portfolio[ticker]['maliyet']
+            total_maliyet += (lot * maliyet)
+
+            b_ticker = ticker if ticker.endswith('.IS') else f"{ticker}.IS"
+            curr_price = maliyet
+            daily_change_pct = 0.0
+
+            if raw_data is not None and not raw_data.empty:
+                try:
+                    df = None
+                    if len(bist_tickers) == 1:
+                        df = raw_data.dropna(how="all")
+                    else:
+                        if b_ticker in raw_data.columns.levels[0]:
+                            df = raw_data[b_ticker].dropna(how="all")
+
+                    if df is not None and not df.empty and 'Close' in df.columns:
+                        close_series = df['Close'].dropna()
+                        if not close_series.empty:
+                            curr_price = float(close_series.iloc[-1])
+                            if len(close_series) >= 2:
+                                prev_close = float(close_series.iloc[-2])
+                                if prev_close > 0:
+                                    daily_change_pct = ((curr_price - prev_close) / prev_close) * 100
+                except Exception:
+                    pass
+
+            stock_val = lot * curr_price
+            total_stock_value += stock_val
+            pnl_tl = (curr_price - maliyet) * lot
+            pnl_pct = ((curr_price - maliyet) / maliyet) * 100 if maliyet > 0 else 0.0
+
+            rows.append({
+                'ticker': ticker,
+                'lot': lot,
+                'maliyet': maliyet,
+                'curr_price': curr_price,
+                'daily_change_pct': daily_change_pct,
+                'stock_val': stock_val,
+                'pnl_tl': pnl_tl,
+                'pnl_pct': pnl_pct
+            })
+
+        total_portfolio_val = budget + total_stock_value
+        total_pnl_tl = total_stock_value - total_maliyet
+        total_pnl_pct = (total_pnl_tl / total_maliyet) * 100 if total_maliyet > 0 else 0.0
+
+        if m_status['is_open']:
+            m_badge = _colored("🟢 Açık (Canlı Seans)", 'green', True)
+        elif m_status['is_weekend']:
+            m_badge = _colored(f"🔴 Kapalı ({m_status['next_session_desc']})", 'yellow', True)
+        else:
+            m_badge = _colored(f"🟡 Kapalı ({m_status['next_session_desc']})", 'yellow', True)
+
+        # 3. Ekranı yazdırma
+        clear_screen()
+        print(_colored("=" * 110, 'cyan'))
+        print(_colored(f"  📡 CANLI PORTFÖY VE KÂR/ZARAR TAKİP EKRANI — Portföy: [{active_profile.upper()}]", 'cyan', True))
+        print(_colored("=" * 110, 'cyan'))
+
+        pnl_col = 'green' if total_pnl_tl >= 0 else 'red'
+        pnl_sign = "+" if total_pnl_tl >= 0 else ""
+        pnl_str = _colored(f"{pnl_sign}{total_pnl_tl:,.2f} TL (%{pnl_sign}{total_pnl_pct:,.2f})", pnl_col, True)
+
+        t_mode = get_trading_mode()
+        mode_badge = _colored("⚡ GÜNLÜK AL-SAT (SCALPING)", 'yellow', True) if t_mode == 'DAY_TRADING' else _colored("📈 TREND TAKİBİ (SWING)", 'cyan', True)
+
+        print(f"  Piyasa Durumu   : {m_badge:<45} | Strateji Modu  : {mode_badge}")
+        print(f"  Son Güncelleme  : " + _colored(now_str, 'yellow', True) + " " * 32 + f"| Anlık Toplam K/Z: {pnl_str}")
+        print(f"  Toplam Portföy  : " + _colored(f"{total_portfolio_val:,.2f} TL", 'cyan', True) + " " * max(1, 28 - len(f"{total_portfolio_val:,.2f} TL")) + f" | Hisselerin Değeri: " + _colored(f"{total_stock_value:,.2f} TL", 'green', True))
+        print(f"  Kalan Nakit     : " + _colored(f"{budget:,.2f} TL", 'yellow', True))
+        print(_colored("-" * 110, 'cyan'))
+
+        header_row = f"  {'Hisse':<8} {'Lot':<7} {'Ort.Maliyet':<13} {'Canlı Fiyat':<13} {'Günlük Değ.(%)':<16} {'Hisse Değeri':<15} {'Anlık K/Z (TL)':<16} {'Anlık K/Z (%)':<14} {'Durum'}"
+        print(_colored(header_row, 'cyan', True))
+        print(_colored("  " + "-" * 106, 'cyan'))
+
+        for r in rows:
+            t_str = _colored(f"{r['ticker']:<8}", 'cyan', True)
+            lot_str = f"{r['lot']:<7}"
+            mal_str = f"{r['maliyet']:,.2f} TL".ljust(13)
+            fiy_str = _colored(f"{r['curr_price']:,.2f} TL".ljust(13), 'yellow', True)
+
+            d_col = 'green' if r['daily_change_pct'] >= 0 else 'red'
+            d_sign = "+" if r['daily_change_pct'] >= 0 else ""
+            d_str = _colored(f"{d_sign}{r['daily_change_pct']:+.2f}%".ljust(16), d_col, True)
+
+            val_str = f"{r['stock_val']:,.2f} TL".ljust(15)
+
+            p_col = 'green' if r['pnl_tl'] >= 0 else 'red'
+            p_sign = "+" if r['pnl_tl'] >= 0 else ""
+            p_tl_str = _colored(f"{p_sign}{r['pnl_tl']:,.2f} TL".ljust(16), p_col, True)
+            p_pct_str = _colored(f"%{p_sign}{r['pnl_pct']:,.2f}".ljust(14), p_col, True)
+
+            if t_mode == 'DAY_TRADING':
+                if r['pnl_pct'] >= 2.5:
+                    st_tag = _colored("🚀 KÂR AL (%+2.50+)", 'green', True)
+                elif r['pnl_pct'] <= -1.5:
+                    st_tag = _colored("🛑 STOP (%-1.50-)", 'red', True)
+                elif r['pnl_tl'] >= 0:
+                    st_tag = _colored("🟢 KÂRDA", 'green', True)
+                else:
+                    st_tag = _colored("🔴 ZARARDA", 'red', True)
+            else:
+                st_tag = _colored("🟢 KÂRDA", 'green', True) if r['pnl_tl'] >= 0 else _colored("🔴 ZARARDA", 'red', True)
+
+            print(f"  {t_str} {lot_str} {mal_str} {fiy_str} {d_str} {val_str} {p_tl_str} {p_pct_str} {st_tag}")
+
+        print(_colored("=" * 110, 'cyan'))
+
+        # 4. Geri sayım ve non-blocking klavye kontrolü
+        exit_monitor = False
+
+        for sec_left in range(refresh_interval, 0, -1):
+            sys.stdout.write(f"\r  🔄 Otomatik yenilemeye {sec_left:2d} sn... [R] Manuel Yenile | [Q / ESC / ENTER] Menüye Dön  ")
+            sys.stdout.flush()
+
+            key = get_key_timeout(1.0)
+            if key in ('r', 'R'):
+                break
+            elif key in ('q', 'Q', '11', 'exit', KEY_ESC, KEY_ENTER):
+                exit_monitor = True
+                break
+
+        print("")
+        if exit_monitor:
+            print(_colored("\n  ✓ Canlı takip ekranından çıkılıyor...", 'yellow', True))
+            time.sleep(0.4)
+            break
 
 
 def _colored(text: str, color: str = None, bright: bool = False) -> str:
@@ -342,6 +529,14 @@ def init_profile() -> str:
                 })
             options.append({'label': "────────────────────────────────────────", 'is_separator': True})
 
+        t_mode = get_trading_mode()
+        mode_badge = "⚡ Günlük Al-Sat (Scalping)" if t_mode == "DAY_TRADING" else "📈 Trend Takibi (Swing)"
+
+        options.append({
+            'label': f"🎯 Ticaret Stratejisi: {mode_badge}",
+            'value': ('action', 'toggle_trading_mode'),
+            'desc': "Günlük Al-Sat (%2.5 Kâr Al / %1.5 Stop) ile Trend Takibi (%10 Stop) arasında geçiş yapın"
+        })
         options.append({
             'label': "➕ Yeni Portföy Oluştur",
             'value': ('action', 'new_profile'),
@@ -350,7 +545,7 @@ def init_profile() -> str:
         options.append({
             'label': "⚙️  Uygulama & AI Ayarları",
             'value': ('action', 'settings'),
-            'desc': "Gemini/OpenAI API anahtarı ve sistem ayarları"
+            'desc': "Gemini / OpenAI API anahtarları ve önbellek yönetimi"
         })
         options.append({
             'label': "🚪 Çıkış",
@@ -391,7 +586,21 @@ def init_profile() -> str:
             return val
 
         elif kind == 'action':
-            if val == 'new_profile':
+            if val == 'toggle_trading_mode':
+                curr_mode = get_trading_mode()
+                new_mode = "SWING" if curr_mode == "DAY_TRADING" else "DAY_TRADING"
+                set_trading_mode(new_mode)
+                label_tr = "⚡ GÜNLÜK AL-SAT (SCALPING)" if new_mode == "DAY_TRADING" else "📈 TREND TAKİBİ (SWING)"
+                print(_colored(f"\n✅ Ticaret Stratejisi Değiştirildi: [{label_tr}]", 'green', True))
+                if new_mode == "DAY_TRADING":
+                    print(_colored("   • Günlük Kâr Al Hedefi : %2.50+", 'cyan'))
+                    print(_colored("   • Günlük Sıkı Stop    : %1.50-", 'cyan'))
+                    print(_colored("   • Göstergeler         : RSI(9), EMA9/EMA21 ve Hacim İvmesi", 'cyan'))
+                else:
+                    print(_colored("   • Strateji            : Orta Vade Trend Takibi", 'cyan'))
+                    print(_colored("   • Göstergeler         : RSI(14), SMA50/SMA200 ve ATR Kalkanı", 'cyan'))
+                time.sleep(0.4)
+            elif val == 'new_profile':
                 while True:
                     p_name = interactive_input("Yeni Portföy (Kullanıcı) Adı").strip()
                     if not p_name:
@@ -439,6 +648,11 @@ def main():
                     'desc': "Mevcut hisseler, kâr/zarar durumu ve iz süren stop analizi"
                 },
                 {
+                    'label': "📡 Canlı Portföy Takip Ekranı (Anlık K/Z & Canlı Fiyatlar)",
+                    'value': '12',
+                    'desc': "Eldeki hisselerin canlı fiyatlarını ve anlık K/Z değişimini otomatik yenilemeyle izleyin"
+                },
+                {
                     'label': "💰 Bütçeyi Görüntüle / Güncelle",
                     'value': '1',
                     'badge': f"({budget:,.2f} TL)",
@@ -465,14 +679,14 @@ def main():
                     'desc': "Analiz havuzuna yeni hisse ekleme / çıkarma"
                 },
                 {
+                    'label': f"🎯 Strateji Modu: {'⚡ Günlük Al-Sat (Scalping)' if get_trading_mode() == 'DAY_TRADING' else '📈 Trend Takibi (Swing)'}",
+                    'value': '13',
+                    'desc': "Günlük al-sat (%2.5 Kâr Al / %1.5 Stop) ile trend takibi arasında strateji değiştirin"
+                },
+                {
                     'label': "🔄 Portföy Değiştir (Başlangıç Ekranına Dön)",
                     'value': '6',
                     'desc': "Farklı bir portföye geçiş yapın"
-                },
-                {
-                    'label': "⚙️  Uygulama & AI Ayarları",
-                    'value': '8',
-                    'desc': "Gemini / OpenAI API anahtarları ve önbellek yönetimi"
                 },
                 {
                     'label': "🗑️  Mevcut Portföyü Sıfırla veya Sil",
@@ -559,7 +773,12 @@ def main():
                     input(_colored("\nDevam etmek için ENTER'a basın...", 'cyan'))
                     continue
 
-                recommendations = analyze_stocks(data_dict, market_health=market_health)
+                recently_sold = get_recently_sold_stocks(days=1)
+                if recently_sold:
+                    sold_codes = ", ".join(recently_sold.keys())
+                    print(_colored(f"⏳ Soğuma Süresi Koruması (Cooldown): Son 1 günde satılan [{sold_codes}] alım taramasından hariç tutuluyor.", 'yellow', True))
+
+                recommendations = analyze_stocks(data_dict, market_health=market_health, exclude_tickers=list(recently_sold.keys()))
 
                 if not recommendations:
                     print(_colored("⚠️  Şu anki piyasa koşullarında seçici stratejiye uyan hisse bulunamadı.", 'yellow', True))
@@ -939,9 +1158,6 @@ def main():
             elif choice == '7':
                 manage_stock_list()
 
-            elif choice == '8':
-                manage_ai_settings()
-
             elif choice == '9':
                 # BACKTEST MODU
                 try:
@@ -957,12 +1173,30 @@ def main():
                 print(_colored("  📊 AI PERFORMANS RAPORU — Sinyal Takip ve Karşılaştırma", 'cyan', True))
                 print(_colored("=" * 80, 'cyan'))
                 if not is_ai_configured():
-                    print(_colored("  ⚠️  AI yapılandırılmamış. Önce Menü 8'den API anahtarı girin.", 'yellow', True))
+                    print(_colored("  ⚠️  AI yapılandırılmamış. Önce Başlangıç Ekranındaki Ayarlar'dan API anahtarı girin.", 'yellow', True))
                 else:
                     try:
                         print_performance_report()
                     except Exception as e:
                         print(_colored(f"  ❌ Rapor oluşturulamadı: {e}", 'red'))
+                input(_colored("\nDevam etmek için ENTER'a basın...", 'cyan'))
+
+            elif choice == '12':
+                run_live_portfolio_monitor(active_profile)
+
+            elif choice == '13':
+                curr_mode = get_trading_mode()
+                new_mode = "SWING" if curr_mode == "DAY_TRADING" else "DAY_TRADING"
+                set_trading_mode(new_mode)
+                label_tr = "⚡ GÜNLÜK AL-SAT (SCALPING)" if new_mode == "DAY_TRADING" else "📈 TREND TAKİBİ (SWING)"
+                print(_colored(f"\n✅ Ticaret Stratejisi Değiştirildi: [{label_tr}]", 'green', True))
+                if new_mode == "DAY_TRADING":
+                    print(_colored("   • Günlük Kâr Al Hedefi : %2.50+", 'cyan'))
+                    print(_colored("   • Günlük Sıkı Stop    : %1.50-", 'cyan'))
+                    print(_colored("   • Göstergeler         : RSI(9), EMA9/EMA21 ve Hacim İvmesi", 'cyan'))
+                else:
+                    print(_colored("   • Strateji            : Orta Vade Trend Takibi", 'cyan'))
+                    print(_colored("   • Göstergeler         : RSI(14), SMA50/SMA200 ve ATR Kalkanı", 'cyan'))
                 input(_colored("\nDevam etmek için ENTER'a basın...", 'cyan'))
 
             elif choice in ('11', 'exit', None):

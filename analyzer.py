@@ -26,6 +26,49 @@ MIN_AVG_TURNOVER_TL = 3_000_000
 MIN_BUY_SCORE = 6
 MARKET_INDEX = 'XU100.IS'
 MARKET_REGIME_SMA_DAYS = 200
+SYSTEM_CONFIG_FILE = "system_config.json"
+
+
+def get_trading_mode() -> str:
+    """
+    Sistemin aktif ticaret stratejisini döndürür:
+    'DAY_TRADING' (Günlük Al-Sat / Scalping) veya 'SWING' (Trend Takibi)
+    """
+    import os, json
+    if os.path.exists(SYSTEM_CONFIG_FILE):
+        try:
+            with open(SYSTEM_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("trading_mode", "DAY_TRADING")
+        except Exception:
+            pass
+    return "DAY_TRADING"
+
+
+def set_trading_mode(mode: str) -> str:
+    """
+    Sistemin ticaret stratejisini günceller: 'DAY_TRADING' veya 'SWING'
+    """
+    import os, json
+    mode = mode.upper()
+    if mode not in ["DAY_TRADING", "SWING"]:
+        mode = "DAY_TRADING"
+    
+    data = {}
+    if os.path.exists(SYSTEM_CONFIG_FILE):
+        try:
+            with open(SYSTEM_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    
+    data["trading_mode"] = mode
+    try:
+        with open(SYSTEM_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    return mode
 
 
 def calculate_market_health(data_dict: dict) -> dict:
@@ -257,7 +300,7 @@ def get_market_regime(data_dict):
     return calculate_market_health(data_dict)
 
 
-def analyze_stocks(data_dict, market_health=None):
+def analyze_stocks(data_dict, market_health=None, exclude_tickers=None):
     """
     BIST hisselerini piyasa sağlık endeksi, gelişmiş teknik analiz,
     risk yönetimi (ATR) ve adaptif puanlama motoru ile değerlendirir (Maks: 15 puan).
@@ -267,6 +310,10 @@ def analyze_stocks(data_dict, market_health=None):
 
     if not market_health['allow_new_buys']:
         return []
+
+    if exclude_tickers is None:
+        exclude_tickers = []
+    exclude_set = {t.upper().replace('.IS', '') for t in exclude_tickers}
 
     min_required_score = market_health.get('min_buy_score', MIN_BUY_SCORE)
 
@@ -291,6 +338,10 @@ def analyze_stocks(data_dict, market_health=None):
 
     for ticker, df in data_dict.items():
         if ticker == MARKET_INDEX or not ticker.endswith('.IS'):
+            continue
+
+        raw_code = ticker.replace('.IS', '').upper()
+        if raw_code in exclude_set:
             continue
 
         if len(df) < MIN_STOCK_HISTORY_DAYS:
@@ -404,15 +455,25 @@ def analyze_stocks(data_dict, market_health=None):
             except Exception:
                 last_atr = 0.0
 
+            t_mode = get_trading_mode()
+
             if last_atr > 0:
-                stop_loss = round(max(last_price - 1.8 * last_atr, last_price * 0.88), 2)
-                target_price = round(last_price + 3.5 * last_atr, 2)
+                if t_mode == 'DAY_TRADING':
+                    stop_loss = round(max(last_price - 1.0 * last_atr, last_price * 0.985), 2)
+                    target_price = round(min(last_price + 1.8 * last_atr, last_price * 1.035), 2)
+                else:
+                    stop_loss = round(max(last_price - 1.8 * last_atr, last_price * 0.88), 2)
+                    target_price = round(last_price + 3.5 * last_atr, 2)
                 risk = last_price - stop_loss
                 reward = target_price - last_price
                 risk_reward = round(reward / risk, 2) if risk > 0 else 2.0
             else:
-                stop_loss = round(last_price * 0.90, 2)
-                target_price = round(last_price + (last_price * 0.20), 2)
+                if t_mode == 'DAY_TRADING':
+                    stop_loss = round(last_price * 0.985, 2)
+                    target_price = round(last_price * 1.035, 2)
+                else:
+                    stop_loss = round(last_price * 0.90, 2)
+                    target_price = round(last_price + (last_price * 0.20), 2)
                 risk_reward = 2.0
 
             # 9. Hacim ve Likidite Analizi
@@ -438,8 +499,12 @@ def analyze_stocks(data_dict, market_health=None):
             # Ana Trend Şartı: Orta vadeli yükseliş trendi (Fiyat >= SMA50)
             trend_ok = (last_price >= last_sma50)
 
-            falling_knife = price_change_20d < -15 and last_macd_diff <= 0
-            if falling_knife:
+            # Satış sinyalleri ile tam senkronizasyon (Death Cross, RSI Çöküşü veya Düşen Bıçak Alınmaz)
+            death_cross = (has_sma200 and last_sma200 is not None and last_sma50 < last_sma200)
+            rsi_crash = (last_rsi < 35)
+            falling_knife = (price_change_20d < -15 and last_macd_diff <= 0)
+
+            if not trend_ok or death_cross or rsi_crash or falling_knife:
                 continue
 
             # 10. RSI Pozitif Uyumsuzluk (Bullish Divergence) Tespiti
@@ -706,19 +771,40 @@ def evaluate_portfolio(portfolio, data_dict, market_health=None):
                 reasons.append("Negatif RSI Uyumsuzluğu ⚠️")
 
             # 7. Stop-Loss Disiplini (Maliyet Risk Kalkanı)
-            if k_z <= -10.0:
-                sat_puani += 3
-                reasons.append(f"Stop-Loss Eşiği (%{k_z:.1f}) 🛑")
+            t_mode = get_trading_mode()
+            if t_mode == 'DAY_TRADING':
+                if k_z <= -1.5:
+                    sat_puani += 3
+                    reasons.append(f"Günlük Sıkı Stop Eşiği (%{k_z:+.2f}) 🛑")
+            else:
+                if k_z <= -10.0:
+                    sat_puani += 3
+                    reasons.append(f"Stop-Loss Eşiği (%{k_z:.1f}) 🛑")
 
             # ---- KARAR MATRİSİ ----
-            if sat_puani >= 3:
-                action = "Sat"
-            elif sat_puani >= 2:
-                action = "Dikkatli Tut"
+            if t_mode == 'DAY_TRADING':
+                if k_z >= 2.5:
+                    action = "Kâr Al"
+                    reasons.insert(0, f"Günlük Kâr Hedefine Ulaşıldı (%{k_z:+.2f}) 🚀")
+                elif k_z <= -1.5:
+                    action = "Günlük Stop"
+                elif sat_puani >= 3:
+                    action = "Sat"
+                elif sat_puani >= 2:
+                    action = "Dikkatli Tut"
+                else:
+                    action = "Güçlü Tut"
+                    if not reasons:
+                        reasons.append("Gün içi ivme olumlu ✓")
             else:
-                action = "Güçlü Tut"
-                if not reasons:
-                    reasons.append("Trend Güçlü / Kâr Sürdürülüyor ✓")
+                if sat_puani >= 3:
+                    action = "Sat"
+                elif sat_puani >= 2:
+                    action = "Dikkatli Tut"
+                else:
+                    action = "Güçlü Tut"
+                    if not reasons:
+                        reasons.append("Trend Güçlü / Kâr Sürdürülüyor ✓")
 
             # ATR İz Süren Stop Seviyesi (Kârı koruma eşiği)
             trailing_stop = round(last_price - 1.8 * last_atr, 2) if last_atr > 0 else round(last_price * 0.90, 2)

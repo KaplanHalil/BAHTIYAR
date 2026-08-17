@@ -1,108 +1,108 @@
 {
   "BIMAS": {
-    "skor": 1,
-    "guven": 0.85,
-    "ozet": "Pay geri alımı ve temettü ödemesi haberleri hisse fiyatını olumlu etkiler.",
-    "etiket": "OLUMLU",
+    "skor": 2,
+    "guven": 0.95,
+    "ozet": "Bedelsiz, temettü ve pay geri alımı hisseyi destekler.",
+    "etiket": "COK_OLUMLU",
     "haberler": [
       "BIM MAGAZALAR Hisse Senedi Canlı Grafik - Mynet Finans",
-      "BİM (BIMAS) pay geri alım programını tamamladı: 2,5 milyon adet hisse geri alındı - CNBC-e",
+      "BİM Birleşik Mağazalar'da hisse devir bildirimi - CNBC-e",
       "BIMAS hisse bölündü mü, fiyatı ne kadar oldu? Bim (BIMAS) %100 bedelsiz sermaye artırımı 2026 - Bigpara",
       "Yarın (17 Haziran 2026) 2 şirket temettü ödemesi yapıyor. 1 lotu olanın hesabına geçiyor. - Ekonomim",
       "BİM’den borsada dev pay geri alımı! KAP açıklaması geldi - Muğla Yenigün"
     ],
     "kaynak": "gemini",
-    "timestamp": "2026-08-13T11:23:39.338940"
+    "timestamp": "2026-08-17T08:43:43.229464"
   },
   "MPARK": {
-    "skor": 1,
+    "skor": 0,
     "guven": 0.75,
-    "ozet": "Kurumsal ilgi ve yabancı girişi haberi hisseye hafif olumlu yansıyabilir.",
-    "etiket": "OLUMLU",
+    "ozet": "Yabancı satışı baskılasa da geri alım ve hedef fiyatlar dengeli.",
+    "etiket": "NOTR",
     "haberler": [
       "Aselsan ve MLP Sağlık dahil 7 hissede özel emirle işlem gerçekleştirildi - CNBC-e",
-      "Borsa İstanbul'da çoklu sinyal üreten hisseler haberi - Borsanın Gündemi",
-      "Aracı kurumlara göre 2026'nın yıldızı parlayacak hisseler - Habertürk",
-      "Borsa İstanbul duyurdu: 97 hissede değişikliğe gidilecek - CNBC-e",
-      "BlackRock Türk hisselerine dönüş yaptı - Forbes Türkiye"
+      "MLP Sağlık'ta yabancı ortak hisselerini sattı - Bloomberght",
+      "MLP Sağlık'tan yeni hisse geri alımı - Ekonomist",
+      "Medical Park (MPARK) için hedef fiyat belirlendi - Rota Borsa",
+      "HSBC, Medical Park (MPARK) hisseleri için yeni hedef fiyatını açıkladı - Rota Borsa"
     ],
     "kaynak": "gemini",
-    "timestamp": "2026-08-13T11:13:41.946057"
+    "timestamp": "2026-08-17T15:15:28.222058"
   },
   "ALBRK": {
-    "skor": 1,
-    "guven": 0.8,
-    "ozet": "Temettü teklifi ve operasyonel hamleler hisseyi kısa vadede destekleyebilir.",
-    "etiket": "OLUMLU",
+    "skor": 2,
+    "guven": 0.85,
+    "ozet": "Beklentileri aşan %278 kâr artışı ve temettü teklifi güçlü pozitif etki yaratır.",
+    "etiket": "COK_OLUMLU",
     "haberler": [
-      "ALBRK Tahmini — 2027 için Fiyat Hedefi - TradingView",
-      "Albaraka Türk \"albaFX Yurt İçi Hisse Senedi Yüzde 0 Komisyon\" kampanyası başlattı - Anadolu Ajansı",
-      "KAP *** ALBARAKA PORTFÖY YÖNETİMİ A.Ş. TEKNOLOJİ GELİŞİM GİRİŞİM SERMAYESİ YATIRIM FONU *** PGA *** Sorumluluk Beyanı - Yeni Şafak",
       "Albaraka Türk temettü teklifini açıkladı - Doviz.com",
-      "ALBARAKA TURK - KAP Haberleri - 2026-03-27 tarihli - Bloomberght"
+      "ALARKO HOLDİNG A.Ş. #ALARK KAP HABERİ #BORSA #HİSSE #KAPHABERİ Ida Di Filippo (uSxqAFns1B) - Mshale",
+      "Borsa İstanbul’da 8 Şirket Temettü Dağıtacak - borsagundem.com.tr",
+      "Albaraka Türk beklentileri aştı: Net kar yüzde 278 arttı - CNBC-e",
+      "ALBRK Hisse Grafiği, Fiyatı, Yorumu — BIST:ALBRK - TradingView"
     ],
     "kaynak": "gemini",
-    "timestamp": "2026-08-13T11:13:47.863925"
+    "timestamp": "2026-08-17T15:08:29.947355"
   },
   "KTLEV": {
-    "skor": 2,
-    "guven": 0.9,
-    "ozet": "SPK onaylı %238 bedelsiz sermaye artırımı hisseye güçlü alım getirebilir.",
-    "etiket": "COK_OLUMLU",
+    "skor": 0,
+    "guven": 0.5,
+    "ozet": "Haberler genel piyasa performansını özetliyor, KTLEV'e özel değil.",
+    "etiket": "NOTR",
     "haberler": [
-      "MSCI'dan Borsa İstanbul için kritik karar: 7 hisse endekse giriyor, 2 hisse çıkıyor! - CNBC-e",
-      "Borsada en çok kazandıran ve kaybettiren hisseler - Diken",
-      "Borsa yatırımcısından 1 milyar TL’lik net alış. İşte en en fazla alış yapılan hisseler - Ekonomim",
-      "SPK onayladı! Katılımevim'den (KTLEV) %238 bedelsiz sermaye artırımı - CNBC-e",
-      "Borsada en çok kazandıran ve kaybettiren hisseler - Diken"
+      "Borsa İstanbul'da haftanın kazandıranları belli oldu haberi - Borsanın Gündemi",
+      "Borsa İstanbul'da en çok kazandıran ve kaybettiren hisseler belli oldu - t24.com.tr",
+      "Borsada haftanın yıldızları belli oldu: İki hissede kâr yüzde 76’yı aştı - CNBC-e",
+      "Borsa İstanbul’da haftanın bilançosu: İşte en çok kazandıran ve kaybettiren hisseler - Sanayi Gazetesi",
+      "BIST 100'de haftanın en çok kazandıran ve kaybettiren hisseleri - Odatv"
     ],
     "kaynak": "gemini",
-    "timestamp": "2026-08-13T11:19:48.218724"
+    "timestamp": "2026-08-17T15:08:27.521141"
   },
   "ESCOM": {
-    "skor": 2,
-    "guven": 0.9,
-    "ozet": "Yüzde 1309 bedelsiz ve fon alımları kısa vadede güçlü yükselişi destekliyor.",
-    "etiket": "COK_OLUMLU",
+    "skor": 1,
+    "guven": 0.75,
+    "ozet": "Bedelsiz süreci, yeni yatırım ve fon ilgisi kısa vadede hisseyi destekler.",
+    "etiket": "OLUMLU",
     "haberler": [
       "ESCOM Hisse Grafiği, Fiyatı, Yorumu — BIST:ESCOM - TradingView",
+      "ESCOM: Halil İbrahim Özer’in 2 Milyon Hissesi Alım Satıma Açıldı - Investing.com Türkiye",
       "Escort Teknoloji Pax Animi’ye Yatırım Açıklarken Hisseler Pozitif Kaldı - Paratic Haber",
-      "Piyasa değeri 2.4 milyar liraya ulaştı, Finlandiyalı Fonun payı yüzde 6’ya çıktı - Ekonomi Gazetesi",
-      "Emeklilik fonlarının en fazla aldığı 10 hisse - Ekonomim",
-      "Bugün bir hissenin fiyatında düzeltme var: Yüzde 1309 bedelsiz... - Ekonomist"
+      "Piyasa değeri 2.4 milyar liraya ulaştı, Finlandiyalı Fonun payı yüzde 6’ya çıktı - Ekonomim",
+      "Escort Teknoloji (ESCOM) bedelsiz tarihini açıkladı - borsagundem.com.tr"
     ],
     "kaynak": "gemini",
-    "timestamp": "2026-08-13T11:20:00.980576"
+    "timestamp": "2026-08-17T15:08:21.796901"
   },
   "BAHKM": {
     "skor": -2,
-    "guven": 0.9,
-    "ozet": "Fabrikadaki yangın ve hissenin taban olması kısa vadede sert baskı yaratır.",
+    "guven": 0.95,
+    "ozet": "Fabrika yangını ve işlemlerin askıya alınması sert düşüş yarattı.",
     "etiket": "COK_OLUMSUZ",
     "haberler": [
       "Bahadır Kimya’da yangın sonrası hisseler işleme açıldı haberi - Borsanın Gündemi",
+      "Karar verildi! Borsada iki hissenin oranı değişiyor - Finans haberlerinin doğru adresi - Mynet Finans Haber - Mynet Finans",
       "Bahadır Kimya'nın fabrikasında yangın çıktı: Hisseler taban oldu, işlemler askıya alındı - Dünya Gazetesi",
       "BIST KOBİ Sanayi Endeksi’ne 17 hisse dahil edilecek - borsagundem.com.tr",
-      "Bahadır Kimya fabrikasında yangın: Önce devre kesti, sonra işleme kapatıldı haberi - Borsanın Gündemi",
-      "Borsada BAHKM Hissesi İşleme Kapatıldı! Patron Açıklama Yaptı - Para Ajansı"
+      "Bahadır Kimya fabrikasında yangın: Önce devre kesti, sonra işleme kapatıldı haberi - Borsanın Gündemi"
     ],
     "kaynak": "gemini",
-    "timestamp": "2026-08-13T11:20:10.189713"
+    "timestamp": "2026-08-17T15:14:54.962634"
   },
   "CELHA": {
     "skor": 1,
-    "guven": 0.8,
-    "ozet": "Tedbirlerin kalkması ve pay artışı haberi kısa vadede hisseyi olumlu etkiler.",
+    "guven": 0.75,
+    "ozet": "Tedbirlerin kalkması ve ortak artışı hisseyi destekler.",
     "etiket": "OLUMLU",
     "haberler": [
       "Borsa İstanbul'da 6 hisse için yeni dönem: Tedbirler bugün sona eriyor - CNBC-e",
-      "Bugün 6 hissenin üzerindeki yasaklar kalkıyor - borsagundem.com.tr",
       "CELIK HALAT - KAP Haberleri - 2026-06-02 tarihli - Bloomberght",
+      "Bugün 6 hissenin üzerindeki yasaklar kalkıyor - borsagundem.com.tr",
       "CELHA Hisse Grafiği, Fiyatı, Yorumu — BIST:CELHA - TradingView",
       "Kayserili iş adamı, dev fabrikadaki hisselerini yüzde 75'e yükseltti! - Kayseri Olay Haber"
     ],
     "kaynak": "gemini",
-    "timestamp": "2026-08-13T11:20:16.521597"
+    "timestamp": "2026-08-17T15:15:20.698232"
   },
   "EBEBK": {
     "skor": -1,
@@ -208,5 +208,80 @@
     ],
     "kaynak": "gemini",
     "timestamp": "2026-08-13T11:22:47.995382"
+  },
+  "BOSSA": {
+    "skor": 1,
+    "guven": 0.6,
+    "ozet": "Hisse geri alım haberleri kısa vadede destekleyicidir.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "Borsada 8 şirket pay geri alımı yaptı: İşte KAP'a bildirilen alım detayları - CNBC-e",
+      "Geri Alım Yapan Şirketler - borsagundem.com.tr",
+      "3 şirket geri alım gerçekleştirdi - borsagundem.com.tr",
+      "Borsa düşerken 30 şirket hisse geri alımı yaptı! - Ekonomim",
+      "Borsa İstanbul’da 14 Şirketten Temettü Kararı - borsagundem.com.tr"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-17T15:08:19.429771"
+  },
+  "BORSK": {
+    "skor": 1,
+    "guven": 0.6,
+    "ozet": "Pay geri alımı ve sermaye artırımı haberleri olumlu.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "Borsada 8 şirket pay geri alımı yaptı: İşte KAP'a bildirilen alım detayları - CNBC-e",
+      "BOR SEKER AS - KAP Haberleri - 2026-07-20 tarihli - Bloomberght",
+      "Borsada 8 şirket pay geri alımı yaptı: İşte KAP'a bildirilen alım detayları - CNBC-e",
+      "BOR SEKER AS - KAP Haberleri - 2026-05-26 tarihli - Bloomberght",
+      "Sermaye artırımı yapan 3 hissenin fiyatında düzeltme var (10 Aralık) - Borsa - Ekonomist"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-17T15:15:23.243856"
+  },
+  "KRGYO": {
+    "skor": 1,
+    "guven": 0.65,
+    "ozet": "Temettü kararı olumlu karşılansa da bedelli süreci fiyatı dengeleyebilir.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "Borsada iki şirketten daha temettü kararı: Hisse başına ne kadar ödeyecekler? - CNBC-e",
+      "Borsada iki şirketten temettü kararı! İşte hisse başına ödenecek tutar - Finans haberlerinin doğru adresi - Mynet Finans Haber - Mynet Finans",
+      "KRGYO Hisse Grafiği, Fiyatı, Yorumu — BIST:KRGYO - TradingView",
+      "Körfez GYO’un bedelli sermaye artımında rüchan hakkı kullanımı 23 Temmuz’da başlayacak Yazar ForInvest Haber - Investing.com Türkiye",
+      "KORFEZ GAYRIMENK - KAP Haberleri - 2026-08-07 tarihli - Bloomberght"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-17T15:15:25.483679"
+  },
+  "BINBN": {
+    "skor": 0,
+    "guven": 0.5,
+    "ozet": "Hisse için karışık haberler var, kısa vadede yön belirsiz.",
+    "etiket": "NOTR",
+    "haberler": [
+      "BIN ULASIM TEKNOLOJILERI (BINBN) Hisse Senedi - Mynet Finans",
+      "Borsa İstanbul’da 8 Şirketten Temettü Kararı - borsagundem.com.tr",
+      "1000 YATIRIMLAR - KAP Haberleri - 2026-06-18 tarihli - Bloomberght",
+      "BINBN Hisse Grafiği, Fiyatı, Yorumu — BIST:BINBN - TradingView",
+      "46 şirket temettü kararını açıkladı - borsagundem.com.tr"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-17T15:14:52.477447"
+  },
+  "RODRG": {
+    "skor": 1,
+    "guven": 0.6,
+    "ozet": "Bedelsiz sermaye artırımı potansiyeli kısa vadeli olumlu yansıyabilir.",
+    "etiket": "OLUMLU",
+    "haberler": [
+      "RODRIGO TEKSTIL Hisse Senedi Canlı Grafik - Mynet Finans",
+      "Rodrigo Tekstil'den (RODRG) bedelsiz açıklaması var - Ekonomist",
+      "Bu hisseler 1 milyarın altında! Borsada piyasa değeri en düşük 20 şirket belli oldu - Ekonomim",
+      "Temettü kararını açıklayan 24 şirket - Rota Borsa",
+      "Yarın 2 hisse üzerindeki yasaklar kalkacak - Rota Borsa"
+    ],
+    "kaynak": "gemini",
+    "timestamp": "2026-08-17T11:34:49.198145"
   }
 }

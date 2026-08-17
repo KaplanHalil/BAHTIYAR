@@ -125,8 +125,8 @@ def get_key() -> str:
                 return ''
             if b == b'\x1b':
                 import select
-                # Escape dizisinin devamı var mı kontrol et (100ms)
-                r, _, _ = select.select([fd], [], [], 0.1)
+                # Escape dizisinin devamı var mı kontrol et (5ms ultra-hızlı okuma)
+                r, _, _ = select.select([fd], [], [], 0.005)
                 if r:
                     seq = os.read(fd, 16)
                     # Standart ANSI, VT100/220, Application / SS3 modları
@@ -164,6 +164,35 @@ def get_key() -> str:
             return ''
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
+def get_key_timeout(timeout: float = 1.0) -> str:
+    """
+    Belirtilen süre (saniye) boyunca klavyeden bir tuşa basılmasını bekler (non-blocking).
+    Süre dolduğunda tuşa basılmadıysa boş dize ('') döndürür.
+    """
+    if not sys.stdin.isatty():
+        time.sleep(timeout)
+        return ''
+
+    if IS_WINDOWS:
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if msvcrt.kbhit():
+                return get_key()
+            time.sleep(0.05)
+        return ''
+    else:
+        try:
+            import select
+            fd = sys.stdin.fileno()
+            r, _, _ = select.select([fd], [], [], timeout)
+            if r:
+                return get_key()
+        except Exception:
+            time.sleep(timeout)
+        return ''
+
 
 
 # ═══════════════════════════════════════════════════════════════════ #
@@ -249,111 +278,128 @@ def interactive_menu(
     if not sys.stdin.isatty():
         return _non_interactive_fallback(items, title, header_text)
 
-    while True:
-        if clear_before_render:
-            clear_screen()
+    # Immediacy & flicker-free: Imleci gizle
+    sys.stdout.write('\033[?25l')
+    sys.stdout.flush()
 
-        # 1. Özel Header (Banner / Portföy Durumu)
-        if header_text:
-            print(header_text)
+    try:
+        while True:
+            out = []
+            if clear_before_render:
+                if IS_WINDOWS:
+                    os.system('cls')
+                else:
+                    out.append('\033[H\033[2J')
 
-        # 2. Menü Çerçeve Başlığı
-        box_width = 72
-        title_str = f" {title} "
-        left_pad = max(0, (box_width - 2 - len(title_str)) // 2)
-        right_pad = max(0, box_width - 2 - len(title_str) - left_pad)
+            # 1. Özel Header (Banner / Portföy Durumu)
+            if header_text:
+                out.append(header_text + "\n")
 
-        print(c("┌" + "─" * (box_width - 2) + "┐", 'CYAN'))
-        print(
-            c("│", 'CYAN')
-            + " " * left_pad
-            + c(title_str, 'CYAN', bold=True)
-            + " " * right_pad
-            + c("│", 'CYAN')
-        )
-        print(c("├" + "─" * (box_width - 2) + "┤", 'CYAN'))
+            # 2. Menü Çerçeve Başlığı
+            box_width = 72
+            title_str = f" {title} "
+            left_pad = max(0, (box_width - 2 - len(title_str)) // 2)
+            right_pad = max(0, box_width - 2 - len(title_str) - left_pad)
 
-        if subtitle:
-            sub_trimmed = subtitle[:box_width - 6]
-            print(c("│", 'CYAN') + f"  {c(sub_trimmed, 'YELLOW')}" + " " * (box_width - 4 - len(sub_trimmed)) + c("│", 'CYAN'))
-            print(c("├" + "─" * (box_width - 2) + "┤", 'CYAN'))
+            out.append(c("┌" + "─" * (box_width - 2) + "┐", 'CYAN') + "\n")
+            out.append(
+                c("│", 'CYAN')
+                + " " * left_pad
+                + c(title_str, 'CYAN', bold=True)
+                + " " * right_pad
+                + c("│", 'CYAN') + "\n"
+            )
+            out.append(c("├" + "─" * (box_width - 2) + "┤", 'CYAN') + "\n")
 
-        # 3. Seçenekler
-        shortcut_idx = 1
-        for idx, item in enumerate(items):
-            if item.is_separator:
-                sep_line = "  " + "─" * (box_width - 6)
-                print(c("│", 'CYAN') + c(sep_line, 'DIM') + "  " + c("│", 'CYAN'))
+            if subtitle:
+                sub_trimmed = subtitle[:box_width - 6]
+                out.append(c("│", 'CYAN') + f"  {c(sub_trimmed, 'YELLOW')}" + " " * (box_width - 4 - len(sub_trimmed)) + c("│", 'CYAN') + "\n")
+                out.append(c("├" + "─" * (box_width - 2) + "┤", 'CYAN') + "\n")
+
+            # 3. Seçenekler
+            shortcut_idx = 1
+            for idx, item in enumerate(items):
+                if item.is_separator:
+                    sep_line = "  " + "─" * (box_width - 6)
+                    out.append(c("│", 'CYAN') + c(sep_line, 'DIM') + "  " + c("│", 'CYAN') + "\n")
+                    continue
+
+                is_selected = (idx == selected_index)
+                pointer = "❯ " if is_selected else "  "
+                badge_str = f" {item.badge}" if item.badge else ""
+                base_label = f"{item.label}{badge_str}"
+
+                if is_selected:
+                    line_content = f"{pointer}{c(base_label, 'CYAN', bold=True)}"
+                else:
+                    line_content = f"{pointer}{c(base_label, 'WHITE')}"
+
+                # Satır hizalaması
+                raw_len = len(pointer) + len(base_label)
+                spaces = max(1, box_width - 6 - raw_len)
+
+                if is_selected:
+                    out.append(c("│", 'CYAN') + f" {c(' ' + pointer + base_label, 'CYAN', bold=True)}{' ' * spaces}" + c("│", 'CYAN') + "\n")
+                else:
+                    out.append(c("│", 'CYAN') + f"   {line_content}{' ' * max(0, spaces - 1)}" + c("│", 'CYAN') + "\n")
+
+                shortcut_idx += 1
+
+            # 4. Menü Alt Bilgisi
+            out.append(c("├" + "─" * (box_width - 2) + "┤", 'CYAN') + "\n")
+            help_tip = "↑/↓: Gezin  |  ENTER: Seç  |  Sayı: Hızlı Seç  |  q: Çıkış"
+            help_pad = max(0, box_width - 4 - len(help_tip))
+            out.append(c("│", 'CYAN') + f"  {c(help_tip, 'DIM')}" + " " * help_pad + c("│", 'CYAN') + "\n")
+            out.append(c("└" + "─" * (box_width - 2) + "┘", 'CYAN') + "\n")
+
+            # Tek hamlede ekrana yazma (Flicker-free / Anında çizim)
+            sys.stdout.write("".join(out))
+            sys.stdout.flush()
+
+            # 5. Tuş Okuma
+            key = get_key()
+
+            if key in (KEY_UP, 'k', 'K', 'w', 'W'):
+                cur_pos = selectable_indices.index(selected_index)
+                new_pos = (cur_pos - 1) % len(selectable_indices)
+                selected_index = selectable_indices[new_pos]
+
+            elif key in (KEY_DOWN, 'j', 'J', 's', 'S'):
+                cur_pos = selectable_indices.index(selected_index)
+                new_pos = (cur_pos + 1) % len(selectable_indices)
+                selected_index = selectable_indices[new_pos]
+
+            elif key in (KEY_ENTER, ' '):
+                return items[selected_index].value
+
+            elif key == 'HOME':
+                selected_index = selectable_indices[0]
+
+            elif key == 'END':
+                selected_index = selectable_indices[-1]
+
+            elif key in ('q', 'Q', KEY_ESC):
+                for s_idx in selectable_indices:
+                    val = items[s_idx].value
+                    if val in (('action', 'exit'), 'exit', 'cikis', 'back', 'geri', 'quit', '0', '11') or str(val).lower() in ('exit', 'cikis', 'back', 'geri', 'quit', '0', '11'):
+                        return val
+                return None
+
+            elif not key:
                 continue
 
-            is_selected = (idx == selected_index)
-            pointer = "❯ " if is_selected else "  "
-            badge_str = f" {item.badge}" if item.badge else ""
-            base_label = f"{item.label}{badge_str}"
-
-            if is_selected:
-                line_content = f"{pointer}{c(base_label, 'CYAN', bold=True)}"
             else:
-                line_content = f"{pointer}{c(base_label, 'WHITE')}"
-
-            # Satır hizalaması
-            raw_len = len(pointer) + len(base_label)
-            spaces = max(1, box_width - 6 - raw_len)
-
-            if is_selected:
-                print(c("│", 'CYAN') + f" {c(' ' + pointer + base_label, 'CYAN', bold=True)}{' ' * spaces}" + c("│", 'CYAN'))
-            else:
-                print(c("│", 'CYAN') + f"   {line_content}{' ' * max(0, spaces - 1)}" + c("│", 'CYAN'))
-
-            shortcut_idx += 1
-
-        # 4. Menü Alt Bilgisi
-        print(c("├" + "─" * (box_width - 2) + "┤", 'CYAN'))
-        help_tip = "↑/↓: Gezin  |  ENTER: Seç  |  Sayı: Hızlı Seç  |  q: Çıkış"
-        help_pad = max(0, box_width - 4 - len(help_tip))
-        print(c("│", 'CYAN') + f"  {c(help_tip, 'DIM')}" + " " * help_pad + c("│", 'CYAN'))
-        print(c("└" + "─" * (box_width - 2) + "┘", 'CYAN'))
-
-        # 5. Tuş Okuma
-        key = get_key()
-
-        if key in (KEY_UP, 'k', 'K', 'w', 'W'):
-            cur_pos = selectable_indices.index(selected_index)
-            new_pos = (cur_pos - 1) % len(selectable_indices)
-            selected_index = selectable_indices[new_pos]
-
-        elif key in (KEY_DOWN, 'j', 'J', 's', 'S'):
-            cur_pos = selectable_indices.index(selected_index)
-            new_pos = (cur_pos + 1) % len(selectable_indices)
-            selected_index = selectable_indices[new_pos]
-
-        elif key in (KEY_ENTER, ' '):
-            return items[selected_index].value
-
-        elif key == 'HOME':
-            selected_index = selectable_indices[0]
-
-        elif key == 'END':
-            selected_index = selectable_indices[-1]
-
-        elif key in ('q', 'Q', KEY_ESC):
-            for s_idx in selectable_indices:
-                val = items[s_idx].value
-                if val in (('action', 'exit'), 'exit', 'cikis', 'back', 'geri', 'quit', '0', '11') or str(val).lower() in ('exit', 'cikis', 'back', 'geri', 'quit', '0', '11'):
-                    return val
-            return None
-
-        elif not key:
-            continue
-
-        else:
-            # Sayı tuşları ile hızlı seçim
-            num_idx = 1
-            for s_idx in selectable_indices:
-                sc = items[s_idx].shortcut or str(num_idx)
-                if key == sc or (key.isdigit() and str(num_idx) == key):
-                    return items[s_idx].value
-                num_idx += 1
+                # Sayı tuşları ile hızlı seçim
+                num_idx = 1
+                for s_idx in selectable_indices:
+                    sc = items[s_idx].shortcut or str(num_idx)
+                    if key == sc or (key.isdigit() and str(num_idx) == key):
+                        return items[s_idx].value
+                    num_idx += 1
+    finally:
+        # İmleci tekrar görünür yap
+        sys.stdout.write('\033[?25h')
+        sys.stdout.flush()
 
 
 def _non_interactive_fallback(items: List[MenuItem], title: str, header_text: Optional[str]) -> Any:

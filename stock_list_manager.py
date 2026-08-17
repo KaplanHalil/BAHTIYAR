@@ -102,6 +102,8 @@ def add_stock(kod: str, ad: str = "") -> str:
         'invalid' — geçersiz kod
     """
     kod = kod.strip().upper()
+    if kod.endswith(".IS"):
+        kod = kod[:-3]
     if not kod or not (2 <= len(kod) <= 6):
         return "invalid"
 

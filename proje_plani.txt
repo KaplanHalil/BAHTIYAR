@@ -270,5 +270,52 @@ Kullanıcının programı rahatça kullanabilmesi için komut satırı menüsü 
   - **Toplam Net Getiri:** **+%369,66** (Eski +%57,58 seviyesinden **6,4 kat artış**).
   - **Gerçekleşen Kâr:** 36.888,92 TL (140 alım / 135 satım).
 
+## 33. BACKTEST RAPORLARININ MERKEZİ KLASÖRDE TOPLANMASI VE OTOMATİK DÖNGÜSEL TEMİZLİK (MAX 10 DOSYA) [TAMAMLANDI]
+- **Merkezi Rapor Klasörü Entegrasyonu (`backtest_reports/`):**
+  - Kök dizinde dağınıklık oluşturan `backtest_report_*.txt` dosyaları `backtest_reports/` adında özel bir klasör altında toplandı.
+- **Otomatik Limit ve Döngüsel Temizlik (`_clean_old_reports`):**
+  - Rapor kaydı sırasında (`save_report`) klasördeki rapor sayısı kontrol edilerek **10 adedi geçtiğinde en eski tarihli rapor otomatik olarak silinecek** şekilde rotasyon algoritması entegre edildi.
+
+## 34. HİSSE SENEDİ LİSTESİ YÖNETİMİNDE TÜM HİSSELERİN EKSİKSİZ GÖRÜNTÜLENMESİ [TAMAMLANDI]
+- **Tüm Listeyi Kısıtlamasız Listeleme (`manage_stock_list`):**
+  - Hisse senedi listesi yönetimi ekranındaki 15 hisselik kesme/kısıtlama (`stocks[:15]`) kaldırıldı.
+  - Takip havuzundaki tüm hisseler (27+ hisse) sıra numarası, kod ve şirket adlarıyla eksiksiz olarak görüntülendi.
+
+## 35. MERKEZİ UYGULAMA VE AI AYARLARININ BAŞLANGIÇ EKRANINA TAŞINMASI [TAMAMLANDI]
+- **Ayarlar Menüsünün Yerleşimi (`init_profile` vs `main`):**
+  - "⚙️ Uygulama & AI Ayarları" menüsü kullanıcı henüz bir portföye girmeden API anahtarlarını tanımlayabilmesi için **Başlangıç Portföy Seçim Ekranında** konumlandırıldı.
+  - Portföy içi Ana Menüdeki mükerrer 8. seçenek kaldırıldı.
+
+## 36. DETAYLI ANALİZ VE TAVSİYE MOTORU ÇALIŞMA REHBERİ [TAMAMLANDI]
+- **Kapsamlı Dokümantasyon (`analiz_rehberi.txt`):**
+  - Sistemde yapılan Piyasa Sağlık Endeksi (0-100), 11 kriterli Teknik Analiz Motoru, ATR Risk Yönetimi, AI Duygu Analizi, Kârı Sürme Disiplini ve Bütçe Optimizasyonunun **NE YAPILDIGINI ve NEDEN YAPILDIGINI** detaylandıran rehber dokümanı oluşturuldu.
+
+## 37. CANLI PORTFÖY VE ANLIK KÂR/ZARAR TAKİP EKRANI (OTOMATİK YENİLEME) [TAMAMLANDI]
+- **Canlı Piyasa ve Portföy Ticker Ekranı (`run_live_portfolio_monitor`):**
+  - Portföye giriş yaptıktan sonra erişilebilen yeni **"📡 Canlı Portföy Takip Ekranı (Anlık K/Z & Canlı Fiyatlar)"** eklendi.
+  - Portföydeki tüm hisselerin son canlı fiyatı, dünün kapanışına göre günlük değişim oranı (`%+1.20` / `%-0.80`), anlık toplam hisse değeri, anlık gerçekleşen kâr/zarar tutarı (TL) ve yüzdesi (% K/Z) renkli tablo formatında sunuldu.
+  - **Otomatik Yenileme ve Non-Blocking Klavye Motoru (`get_key_timeout`):** Ekran açık olduğu sürece her 10 saniyede bir fiyatlar arka planda canlı olarak yenilenir. Kullanıcı [R] tuşu ile anında manuel yenileme yapabilir veya [Q] / [ESC] / [ENTER] tuşlarıyla menüye dönüş yapabilir.
+
+## 38. SATILAN HİSSELERE SOĞUMA SÜRESİ (COOLDOWN) VE AL/SAT SİNYAL SENKRONİZASYONU [TAMAMLANDI]
+- **Soğuma Süresi Kalkanı (`get_recently_sold_stocks` & `exclude_tickers`):**
+  - İşlem geçmişi ayrıştırılarak son 1 gün içinde satılan hisseler otomatik tespit edilir.
+  - Piyasa alım taramasında (`analyze_stocks`) bu hisseler 1 gün (24 saat) boyunca alım listesinden hariç tutularak sattığı hisseyi hemen geri alma tuzağı (*Whipsaw / Churning*) engellendi.
+- **Alım/Satım Sinyal Senkronizasyonu (`analyzer.py`):**
+  - Satış motorunda (`evaluate_portfolio`) tetiklenen Death Cross (`SMA50 < SMA200`), RSI Çöküşü (`RSI < 35`) veya Trend Bozulması (`Fiyat < SMA50`) gibi sat sinyalleri olan hisseler alım motorunda (`analyze_stocks`) da doğrudan elenerek tam tutarlılık sağlandı.
+
+## 39. GÜNLÜK AL-SAT (DAY TRADING / SCALPING) OPTİMİZASYON MODU [TAMAMLANDI]
+- **Dinamik Strateji Modu (`get_trading_mode` / `set_trading_mode`):**
+  - Sistem kullanıcı tercihlerine göre ⚡ **Günlük Al-Sat (Scalping)** ve 📈 **Trend Takibi (Swing)** olmak üzere iki farklı analiz rejimi sunar.
+- **Hızlı Kâr Al (+%2.50) & Sıkı Stop (-%1.50) Disiplini:**
+  - Günlük Al-Sat modunda ATR tabanlı dar stop (`1.0 * ATR` / max `-%1.50`) ve hızlı kâr alma hedefleri (`1.8 * ATR` / max `+%2.50 - %3.50`) tanımlandı.
+  - Portföy değerlendirmesinde `k_z >= 2.5` olduğunda 🚀 `Kâr Al (Take Profit)` kararı verilir. `k_z <= -1.5` olduğunda 🛑 `Günlük Stop` ile sermaye korunur.
+- **Hassas Gösterge Ayarları:**
+  - Gün içi ivme ve momentum patlamaları için RSI(9) ve EMA9/EMA21 kısa vadeli kesişimleri devreye sokuldu.
+- **Canlı Takip Ekranı Entegrasyonu:**
+  - `run_live_portfolio_monitor` ekranında hisseler %2.5 kâr hedefine ulaştığında 🚀 `KÂR AL (%+2.50+)`, -%1.5 zarara indiğinde 🛑 `STOP (%-1.50-)` canlı rozetleri ve üst panelde aktif strateji modu gösterildi.
+
+
+
+
 
 

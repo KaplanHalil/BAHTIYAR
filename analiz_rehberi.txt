@@ -1,0 +1,129 @@
+====================================================================================================
+                       BAHTİYAR ANALİZ VE TAVSİYE MOTORU - ÇALIŞMA VE ANALİZ REHBERİ
+====================================================================================================
+
+Bu doküman, BAHTİYAR sisteminin Borsa İstanbul (BİST) hisse senetlerini incelerken hangi analizleri
+yaptığını, bu analizlerin matematiksel/teknik altyapısını ve NEDEN yapıldığını detaylandırmaktadır.
+
+====================================================================================================
+1. PİYASA REJİMİ VE SAĞLIK ENDEKSİ (MARKET HEALTH INDEX: 0 - 100)
+====================================================================================================
+[NE YAPILIYOR?]
+Sistem bireysel hisseleri incelemeden önce BIST100 endeksi ve takip listesindeki tüm hisselerin genel 
+piyasa durumunu 3 ana boyutta ölçer ve 0 ile 100 arasında bir Piyasa Sağlık Skoru hesaplar:
+  1. BIST100 Trend Gücü (Maks 40 Puan): Fiyatın SMA20, SMA50 ve SMA200 üzerindeki konumu ve SMA50 eğimi.
+  2. BIST100 Momentum (Maks 30 Puan): RSI(14) seviyesi ve MACD pozitif ivmesi.
+  3. Piyasa Genişliği / Breadth (Maks 30 Puan): Takip edilen hisselerin yüzde kaçının SMA20 ve SMA50 
+     üzerinde olduğu.
+
+Bu skora göre piyasa 3 rejime ayrılır:
+  - 🟢 GÜÇLÜ BOĞA PİYASASI (Skor 70-100) : %0 Nakit Kalkanı / %100 Yatırım (3-5 hisselik sepet)
+  - 🟡 NÖTR / DALGALI PİYASA (Skor 40-69): %40 Nakit Koruma / %60 Yatırım (Sadece yüksek skorlu fırsatlar)
+  - 🔴 AYI PİYASASI (Skor 0-39)          : %100 NAKİTTE KALMA (Yeni alımlar tamamen durdurulur)
+
+[NEDEN YAPILIYOR?]
+Borsada genel piyasa düşerken (Ayı Piyasası) tekil hisselerin %80-%90'ı endekse uyarak düşer. Sistem,
+kötü piyasa koşullarında nakit kalkanını devreye sokarak sermayeyi korumak (Cash Preservation) ve 
+boğa piyasasında ise bütçenin tamamıyla maksimum getiri elde etmek için bu analizi yapar.
+
+====================================================================================================
+2. ÇOK KRİTERLİ TEKNİK ANALİZ MOTORU (MAKS 15 PUAN)
+====================================================================================================
+[NE YAPILIYOR?]
+Her bir hisse senedi 11 farklı teknik gösterge ve kural ile detaylı bir taramadan geçirilir:
+
+  1. RSI (Relative Strength Index - 14 Günlük):
+     - Aşırı satım (<30) veya sağlıklı yükseliş (35-60) bölgesindeyse +1 puan.
+     - Aşırı alım (>75) riskindeyse -1 puan.
+     - [Neden?]: Hissenin aşırı pahalılaşıp pahalanmadığını veya ucuzlama bölgesinde olup olmadığını anlar.
+
+  2. MACD (Moving Average Convergence Divergence):
+     - MACD sıfırın üzerindeyse +1 puan, taze yukarı kesişim (Crossover) yaptıysa +2 puan.
+     - [Neden?]: Hissenin orta vadeli yön ivmesini ve trend değişiminin ilk başladığı anı yakalar.
+
+  3. Hareketli Ortalamalar (SMA50 & SMA200):
+     - Fiyat > SMA50 (+1 puan), Fiyat > SMA200 (+1 puan), Golden Cross (SMA50 > SMA200) (+2 puan),
+       SMA50 Yükseliyor (+1 puan). Fiyat ortalamaların altındaysa puan kırılır.
+     - [Neden?]: Ana trendin yönünü belirler. Ortalamaların altındaki "düşen bıçak" hisseleri eler.
+
+  4. Bollinger Bantları (20 Günlük, 2 Sapma):
+     - Trend içindeyken alt banda yakınsa (+1 puan), Bollinger genişliği daralmışsa (Sıkışma/Squeeze) (+1 puan).
+     - [Neden?]: Volatilitenin iyice daraldığı ve yakında patlamalı bir yükseliş yapabileceği hisseleri tespit eder.
+
+  5. Stochastic Oscillator (%K, %D):
+     - Stochastic < 20 (Aşırı satım dip dönüşü) ise +1 puan; > 80 ise -1 puan.
+     - [Neden?]: Kısa vadeli dip ve tepe dönüşlerini çok hızlı fark etmek için.
+
+  6. Hacim Doğrulaması (Volume Confirmation):
+     - Son gün hacmi 20 günlük ortalama hacmin üzerindeyse (+1 puan).
+     - [Neden?]: Fiyat yükselişinin arkasında kurumsal/büyük para girişi olup olmadığını doğrular.
+
+  7. ADX (Average Directional Index - 14 Günlük Trend Gücü):
+     - ADX >= 25 ise güçlü trend bonusu (+1 puan); ADX < 18 ise yatay piyasa testere riski (-1 puan).
+     - [Neden?]: Hissenin yatayda testere (whipsaw) yapıp sürekli stop ettirmesini engeller.
+
+  8. MFI (Money Flow Index - Para Akışı Endeksi):
+     - MFI < 25 (Para girişi/dip) +1 puan; MFI > 80 (Para çıkış riski) -1 puan.
+     - [Neden?]: Fiyat hareketine para giriş/çıkış hacminin eşlik edip etmediğini kontrol eder.
+
+  9. Pozitif RSI Uyumsuzluğu (Bullish Divergence):
+     - Son 20 günde fiyat daha düşük dip yaparken RSI daha yüksek dip yapıyorsa (+2 puan).
+     - [Neden?]: Erken dip dönüşlerini ve dipte toplanan hisseleri yakalamada en güvenilir sinyaldir.
+
+  10. Endeks Üstü Göreceli Güç (Alpha / Relative Strength):
+      - Hissenin 20 günlük getirisi BIST100 getirisini %4'ten fazla aştıysa (+1 puan).
+      - [Neden?]: Piyasa yükselirken endeksten daha güçlü koşan "lider hisseleri" bulmak için.
+
+  11. Kısa Vadeli İvme (EMA9 >= EMA21):
+      - Kısa vadeli hareketli ortalamalar yukarı yönlüyse (+1 puan).
+
+====================================================================================================
+3. DİNAMİK RİSK YÖNETİMİ & ATR BAZLI SEVİYELER
+====================================================================================================
+[NE YAPILIYOR?]
+Her hisse için volatilite göstergesi olan ATR (Average True Range - 14) hesaplanır ve şunlar belirlenir:
+  - Dinamik Stop-Loss   : Fiyat - (2 * ATR)
+  - Dinamik Hedef Fiyat : Fiyat + (3 * ATR)
+  - Risk / Ödül Oranı   : (Hedef Fiyat - Fiyat) / (Fiyat - Stop Loss)
+
+[NEDEN YAPILIYOR?]
+Sabit %5 veya %8 stop koymak, oynaklığı yüksek (beta yüksek) hisselerde normal günlük dalgalanmada 
+zamansız stop olmaya yol açar. ATR, hissenin kendi geçmiş oynaklığına göre "kişiselleştirilmiş" 
+güvenli stop ve hedef seviyeleri çizer.
+
+====================================================================================================
+4. YAPAY ZEKA DESTEKLİ HABER DUYGU ANALİZİ (AI SENTIMENT ANALYSIS)
+====================================================================================================
+[NE YAPILIYOR?]
+Google News RSS üzerinden hisseye ait son haberler çekilir ve Google Gemini / OpenAI modelleriyle 
+duygu analizine tabi tutulur. Çıkan sentiment skoru (-2 ile +2 arası) teknik skora eklenir/çıkarılır.
+  - Portföydeki hisse için Teknik "Güçlü Tut" iken AI "Çok Olumsuz" haber yakalarsa -> AI SAT UYARISI verir.
+
+[NEDEN YAPILIYOR?]
+Teknik grafik geçmiş veriyi gösterir; ancak KAP açıklamaları, bilanço duyuruları, dava veya satın alma
+gibi anlık haberler fiyatı doğrudan etkiler. Teknik analiz ile temel haber akışını birleştirerek 
+hibrit bir karar mekanizması oluşturulur.
+
+====================================================================================================
+5. KÂRI SÜRME (WIN-RUNNER) VE İZ SÜREN STOP (TRAILING STOP) DISİPLİNİ
+====================================================================================================
+[NE YAPILIYOR?]
+Portföydeki kârlı hisseler sabitleşmiş bir %15 veya %20 seviyesinde hemen satılmaz. Hisse ana trendini
+(SMA50) koruduğu sürece tutulmaya devam edilir. Satış kararları yalnızca gerçek trend kırılımlarında
+(Death Cross, Fiyat < SMA50, ATR İz Süren Stop İhlali) tetiklenir.
+
+[NEDEN YAPILIYOR?]
+Borsada kârlılığın sırrı kazanan hisselerde uzun süre kalabilmektir ("Cut losses short, let profits run").
+Kârlı hisseleri erken kesmek +%100, +%300 getiri sağlayabilecek boğa rallilerini kaçırmaya neden olur.
+
+====================================================================================================
+6. BÜTÇE OPTİMİZASYONU VE SEPET OLUŞTURMA
+====================================================================================================
+[NE YAPILIYOR?]
+Kullanıcının bütçesi, en yüksek skora ve sinyal gücüne sahip ilk 3-5 hisse arasında eşit/dengeli olarak
+bölüştürülür. Hisselerin güncel fiyatına göre tam kaçar Lot alınabileceği ve kalan nakit hesaplanır.
+
+[NEDEN YAPILIYOR?]
+Tüm parayı tek hisseye yatırma riskini (Konsantrasyon Riski) engellemek ve riski sepet mantığıyla 
+dağıtarak (Diversification) portföyün dengeli ve kararlı büyümesini sağlamak için.
+====================================================================================================

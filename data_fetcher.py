@@ -25,7 +25,7 @@ def fetch_data(stock_list=None, period="1y"):
         dict: {ticker: dataframe} formatında veri
     """
     if stock_list is None:
-        stock_list = BIST_STOCKS
+        stock_list = get_stock_list()
 
     result = {}
 

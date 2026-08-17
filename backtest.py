@@ -516,10 +516,34 @@ class BacktestEngine:
 
         return report
 
-    def save_report(self, report, filename=None):
-        """Raporu TXT dosyasına kaydet"""
+    def _clean_old_reports(self, reports_dir="backtest_reports", max_files=10):
+        """Klasördeki rapor sayısını denetler ve max_files (10) adedi geçerse en eskilerini siler."""
+        if not os.path.exists(reports_dir):
+            return
+
+        files = [
+            os.path.join(reports_dir, f) for f in os.listdir(reports_dir)
+            if f.startswith("backtest_report_") and f.endswith(".txt")
+        ]
+
+        files.sort(key=lambda x: os.path.getmtime(x))
+
+        while len(files) > max_files:
+            oldest = files.pop(0)
+            try:
+                os.remove(oldest)
+                print(f"  🗑️  Eski rapor temizlendi (Maks {max_files} limit): {os.path.basename(oldest)}")
+            except Exception as e:
+                print(f"  ⚠️ Eski rapor silinirken hata: {e}")
+
+    def save_report(self, report, filename=None, reports_dir="backtest_reports"):
+        """Raporu TXT dosyasına kaydet ve klasördeki rapor sayısını 10 ile sınırla"""
+        os.makedirs(reports_dir, exist_ok=True)
+
         if filename is None:
-            filename = f"backtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            filename = os.path.join(reports_dir, f"backtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
+        elif not os.path.isabs(filename) and not filename.startswith(reports_dir):
+            filename = os.path.join(reports_dir, os.path.basename(filename))
 
         with open(filename, 'w', encoding='utf-8') as f:
             f.write("=" * 100 + "\n")
@@ -601,6 +625,8 @@ class BacktestEngine:
                 + datetime.now().strftime("%d.%m.%Y %H:%M:%S") + "\n"
             )
             f.write("=" * 100 + "\n")
+
+        self._clean_old_reports(reports_dir, max_files=10)
 
         return filename
 
